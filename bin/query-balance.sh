@@ -6,32 +6,25 @@
 
 set -e
 
-CONFIG_DIR="${CLAUDE_STATUSLINE_DIR:-$HOME/.claude/statusline}"
+# 加载布局模块（dev: bin/../lib/layout.sh；安装: 同目录 layout.sh）
+if [ -f "${BASH_SOURCE[0]%/*}/../lib/layout.sh" ]; then
+    source "${BASH_SOURCE[0]%/*}/../lib/layout.sh"
+else
+    source "${BASH_SOURCE[0]%/*}/layout.sh"
+fi
+load_module "json.sh"  # settings.json 的 grep 兜底
+
 SETTINGS_FILE="$HOME/.claude/settings.json"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # 确定配置文件路径：优先项目配置（开发模式），其次安装目录配置
-if [ -f "${PROJECT_ROOT}/config/config.json" ]; then
-    CONFIG_FILE="${PROJECT_ROOT}/config/config.json"
-elif [ -f "${SCRIPT_DIR}/../config/config.json" ]; then
-    CONFIG_FILE="${SCRIPT_DIR}/../config/config.json"
-else
-    CONFIG_FILE="$CONFIG_DIR/config.json"
-fi
+# （lib/layout.sh 统一双布局定位：dev 命中 config/，安装命中布局根）
+CONFIG_FILE=$(find_file "config.json" 2>/dev/null || true)
 
 # 检查配置文件是否存在
 [ -f "$CONFIG_FILE" ] || exit 0
 
-# 查找 provider 脚本目录
-PROVIDER_DIR=""
-if [ -d "${PROJECT_ROOT}/config/providers" ]; then
-    PROVIDER_DIR="${PROJECT_ROOT}/config/providers"
-elif [ -d "${SCRIPT_DIR}/../config/providers" ]; then
-    PROVIDER_DIR="${SCRIPT_DIR}/../config/providers"
-elif [ -d "${CONFIG_DIR}/providers" ]; then
-    PROVIDER_DIR="${CONFIG_DIR}/providers"
-fi
+# 查找 provider 脚本目录（lib/layout.sh 统一双布局定位）
+PROVIDER_DIR=$(find_dir "providers" 2>/dev/null || true)
 
 [ -n "$PROVIDER_DIR" ] || exit 0
 
@@ -71,9 +64,9 @@ resolve_value() {
         fi
         [ -n "$value" ] && break
 
-        # 3. grep 全文兜底
+        # 3. json_get 兜底（lib/json.sh 的 awk 实现，支持嵌套路径）
         if [ -f "$SETTINGS_FILE" ]; then
-            value=$(grep -o "\"${var_name}\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$SETTINGS_FILE" 2>/dev/null | head -1 | sed 's/.*:[[:space:]]*"//;s/"$//')
+            value=$(json_get "$SETTINGS_FILE" "$var_name" "")
         fi
         [ -n "$value" ] && break
     done

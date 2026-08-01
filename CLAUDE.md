@@ -45,14 +45,22 @@ echo '{"cwd":"/home/user/test","display_name":"Claude Sonnet 4.6","used_percenta
 ```
 ├── bin/
 │   ├── install.sh         # 安装脚本：部署到 ~/.claude/statusline/
+│   ├── query-balance.sh   # 余额查询调度器：推断 provider、解析凭据、后台刷新
 │   └── statusline.sh      # 主脚本：解析输入、生成状态栏输出
+├── lib/
+│   ├── layout.sh          # 布局模块：统一开发/安装双布局的资源定位（find_file/find_dir）
+│   └── json.sh            # JSON 读取模块：json_get（awk 实现，node/jq 不可用时兜底）
 ├── config/
-│   └── config.json        # 配置文件：颜色阈值、显示选项
+│   ├── config.json        # 配置文件：颜色阈值、显示选项、balance provider 列表
+│   └── providers/         # 余额查询 provider 适配器（每 provider 一个脚本）
 ├── scripts/
-│   └── transcript-parser-lite.js  # transcript 解析器
+│   ├── transcript-parser-lite.js  # transcript 解析器
+│   └── refresh-*-cookie.*         # Cookie 自动刷新（Playwright 复用系统 Chrome）
 ├── docs/
 │   ├── CLAUDE.md          # 项目记忆文档
-│   └── README.md          # 使用文档
+│   ├── README.md          # 使用文档
+│   └── cookie-contract.md # Cookie 契约：谁写、谁读、何时刷新
+├── CONTEXT.md             # 领域词汇表（Layout/Provider/统一缓存等）
 └── CLAUDE.md              # 根目录文档入口
 ```
 
@@ -114,9 +122,21 @@ echo '{"cwd":"/home/user/test","display_name":"Claude Sonnet 4.6","used_percenta
 - green ~ yellow 阈值（55%~75%）：黄色
 - > yellow 阈值（75%）：红色
 
-## 目录重构后的路径引用注意事项
+## 布局与路径引用（lib/layout.sh 统一管理）
 
-`bin/install.sh` 使用 `SCRIPT_DIR` 来定位同目录文件并复制到安装目录。重构后，原 `config.json` 不再与 `install.sh` 同目录。若再次调整目录结构，需要同步修改安装脚本中的源路径（如 `$SCRIPT_DIR/../config/config.json`），否则安装时会遗漏配置文件。
+项目在两种布局下运行：开发布局（`bin/` `scripts/` `config/` `lib/` 分目录）与安装布局（文件拍平到 `~/.claude/statusline/`，`providers/` `scripts/` 保留子目录）。资源定位统一由 `lib/layout.sh` 负责：
+
+- 脚本顶部 source 布局模块（dev：`../lib/layout.sh`；安装：同目录 `layout.sh`），然后可用 `LAYOUT_ROOT`/`CONFIG_DIR`/`CACHE_DIR`
+- `find_file <name>` / `find_dir <name>`：按根 → bin/ → scripts/ → lib/ → config/ 顺序查找，兼容两种布局
+- `load_module <name>`：加载 lib/ 下的共享模块（如 json.sh）
+- `install.sh` 的 `PROJECT_ROOT` 由 `LAYOUT_ROOT` 导出（目录同源），复制清单仍需显式维护——新增共享文件时要同步：
+  1. 放入 `lib/`（或按布局放置）
+  2. `install.sh` 的 `copy_files` 增加对应 `cp`
+  3. `find_file` 的搜索前缀覆盖不到新目录时，在 `_layout_prefixes` 中追加
+
+**已安装用户升级**：重跑 `bash bin/install.sh` 即可（已有备份→清空→重装机制），新文件 `layout.sh`/`json.sh` 会复制到位。
+
+**Cookie provider 注意事项**：cookie 文件（`cache/<provider>_cookie.txt`）由刷新脚本写入、provider 消费、check 脚本检查过期，契约见 `docs/cookie-contract.md`。
 
 ## Windows Git Bash 兼容性
 
@@ -150,15 +170,17 @@ count=$(echo "$text" | grep -c "pattern" 2>/dev/null | head -1 || echo "0")
 
 - **mtime 缓存命中**（常态）：`config.json` 未比缓存新时，`source` 预解析的 `cache/config_parsed.sh`（零 fork）
 - **miss**：一次 `node` 调用批量提取全部字段（约 60ms），`eval` 注入并写入缓存
-- **fallback**：`node` 不可用时走 `parse_config`（慢，但功能可用）
+- **fallback**：`node` 不可用时走 `lib/json.sh` 的 `json_get`（awk 实现，慢但功能可用）
 
 ### 嵌套 JSON 路径
 
-两条路径都支持点号分隔的嵌套路径，如 `colors.thresholds.green`。主路径在 node 内用 `reduce` 逐级取值；fallback 路径用 `parse_config`：
+两条路径都支持点号分隔的嵌套路径，如 `colors.thresholds.green`。主路径在 node 内用 `reduce` 逐级取值；fallback 路径用 `json_get`：
 
 ```bash
-green_threshold=$(parse_config "colors.thresholds.green" "55")
+green_threshold=$(json_get "$CONFIG_FILE" "colors.thresholds.green" "55")
 ```
+
+`json_get` 也供 `query-balance.sh` 的 settings.json 兜底使用（grep/sed 版 parse_config 已移除，其嵌套花括号匹配不支持嵌套对象，是历史遗留缺陷）。
 
 ### 配置分组结构
 
