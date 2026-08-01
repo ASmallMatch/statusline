@@ -57,12 +57,18 @@ Claude Code Statusline 安装脚本
     -d, --dir DIR       指定安装目录 (默认: ~/.claude/statusline)
     -u, --uninstall     卸载 statusline
     -c, --check         检查安装状态
+    -f, --font          安装数码管字体 (Cascadia Code NF，7 段数字显示需要)
 
 示例:
     bash bin/install.sh                    # 安装到默认目录
     bash bin/install.sh -d /custom/path    # 安装到自定义目录
     bash bin/install.sh -u                 # 卸载
     bash bin/install.sh -c                 # 检查安装状态
+    bash bin/install.sh -f                 # 安装数码管字体
+
+数码管数字 (config.json 的 panel.digit_style: "segment") 需要终端字体包含
+U+1FBF0-U+1FBF9 字形。项目自带 Cascadia Code NF (OFL 开源许可)，安装后
+还需在终端设置中把字体切换为 "Cascadia Code NF" 才能生效。
 
 EOF
 }
@@ -495,6 +501,64 @@ check_status() {
     fi
 }
 
+# 安装数码管字体 (Cascadia Code NF, OFL 许可, 项目 fonts/ 目录自带)
+install_digit_font() {
+    local font_src="$PROJECT_ROOT/fonts/CascadiaCodeNF.ttf"
+    local font_name="Cascadia Code NF"
+
+    if [ ! -f "$font_src" ]; then
+        print_error "字体文件不存在: $font_src"
+        return 1
+    fi
+
+    print_info "安装数码管字体 $font_name ..."
+
+    # 检测平台
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            # Windows: 用户级字体目录 + HKCU 注册表（无需管理员）
+            local font_dir="$LOCALAPPDATA/Microsoft/Windows/Fonts"
+            mkdir -p "$font_dir"
+            cp "$font_src" "$font_dir/CascadiaCodeNF.ttf"
+            if command -v reg &> /dev/null; then
+                # MSYS_NO_PATHCONV=1: 防止 Git Bash 把 /v /t /d 等参数转成 Windows 路径
+                MSYS_NO_PATHCONV=1 reg add "HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts" \
+                    /v "$font_name (TrueType)" /t REG_SZ /d "CascadiaCodeNF.ttf" /f > /dev/null
+            fi
+            print_success "字体已安装到用户字体目录: $font_dir"
+            print_warning "注意: Windows 终端 (Windows Terminal/VS Code) 的字体回退不认新装字体，"
+            print_warning "      需要手动在终端设置里把字体切换为: $font_name"
+            print_warning "      若终端字体列表找不到该字体，请重启终端或重启系统后再试"
+            ;;
+        Darwin)
+            # macOS: 用户字体目录
+            local font_dir="$HOME/Library/Fonts"
+            mkdir -p "$font_dir"
+            cp "$font_src" "$font_dir/CascadiaCodeNF.ttf"
+            print_success "字体已安装: $font_dir/CascadiaCodeNF.ttf"
+            print_warning "然后在终端 (iTerm2/Terminal.app) 设置里把字体切换为: $font_name"
+            ;;
+        Linux)
+            # Linux: 用户字体目录 + fc-cache
+            local font_dir="$HOME/.local/share/fonts"
+            mkdir -p "$font_dir"
+            cp "$font_src" "$font_dir/CascadiaCodeNF.ttf"
+            if command -v fc-cache &> /dev/null; then
+                fc-cache -f "$font_dir" > /dev/null 2>&1
+            fi
+            print_success "字体已安装: $font_dir/CascadiaCodeNF.ttf"
+            print_warning "然后在终端设置里把字体切换为: $font_name"
+            ;;
+        *)
+            print_warning "未知平台，请手动安装字体: $font_src"
+            ;;
+    esac
+
+    print_info "数码管显示示例: 0 1 2 3 4 5 6 7 8 9 = 🯰🯱🯲🯳🯴🯵🯶🯷🯸🯹"
+    print_info "若终端中显示为方块/问号，说明字体未生效；可在 config.json 中改回下标样式:"
+    echo '    "digit_style": "subscript"'
+}
+
 # 主函数
 main() {
     local install_dir="$DEFAULT_INSTALL_DIR"
@@ -517,6 +581,10 @@ main() {
                 ;;
             -c|--check)
                 action="check"
+                shift
+                ;;
+            -f|--font)
+                action="font"
                 shift
                 ;;
             *)
@@ -556,6 +624,22 @@ main() {
             echo "自定义配置:"
             echo "  编辑 $install_dir/config.json"
             echo ""
+
+            # 交互询问是否安装数码管字体（非交互环境自动跳过）
+            if [ -t 0 ]; then
+                echo -n "是否安装数码管字体 (Cascadia Code NF)？7 段数字样式需要它 [y/N]: "
+                read -r install_font_choice
+                case "$install_font_choice" in
+                    y|Y|yes|YES)
+                        install_digit_font
+                        ;;
+                    *)
+                        print_info "跳过字体安装。需要时运行: bash bin/install.sh -f"
+                        ;;
+                esac
+            else
+                print_info "非交互环境，跳过字体安装。需要时运行: bash bin/install.sh -f"
+            fi
             pause
             ;;
         uninstall)
@@ -564,6 +648,10 @@ main() {
             ;;
         check)
             check_status "$install_dir"
+            pause
+            ;;
+        font)
+            install_digit_font
             pause
             ;;
     esac

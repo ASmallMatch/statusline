@@ -212,6 +212,7 @@ The system automatically reads `ANTHROPIC_BASE_URL`, extracts the provider ident
 | `panel.show_tools` | Show tool activities | true |
 | `panel.show_agents` | Show agent status | true |
 | `panel.show_todos` | Show todo progress | true |
+| `panel.digit_style` | Percentage digit style: `segment` (7-segment display) or `subscript` | `segment` |
 
 | `bar_length` | Progress bar length | 10 |
 

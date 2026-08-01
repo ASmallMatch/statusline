@@ -40,6 +40,8 @@
     "show_time": true,
     "show_tools": true,
     "show_agents": true,
-    "show_todos": true
+    "show_todos": true,
+    "show_effort": true,
+    "digit_style": "segment"
   }
 }

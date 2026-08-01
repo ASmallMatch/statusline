@@ -7,8 +7,13 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-01
+
 ### Added
 
+- **statusline**: 显示当前会话思考级别（`panel.show_effort`，读取输入 JSON 的 `effort.level`，支持 low/medium/high/xhigh/max 分级着色，模型不支持时自动隐藏）
+- **statusline**: 百分比数字支持 7 段数码管样式（`panel.digit_style: segment`，默认开启；可切换回 `subscript` 下标样式）
+- **fonts**: 项目自带 Cascadia Code NF 字体（OFL 许可，含 U+1FBF0-U+1FBF9 数码管字形与 Nerd 图标），`bin/install.sh -f` 一键安装（Windows/macOS/Linux 自动适配）
 - 社区规范：CODE_OF_CONDUCT.md、SECURITY.md、CONTRIBUTING.md
 - CI 配置：GitHub Actions（shellcheck + ubuntu/macos 矩阵测试）
 - Issue 模板（Bug 报告 / 功能建议）和 PR 模板
@@ -17,6 +22,7 @@
 
 ### Changed
 
+- **install**: 安装末尾交互询问是否安装数码管字体（非交互环境自动跳过）；修复 Git Bash 下 `reg` 命令参数被 MSYS 路径转换的问题
 - 增强 .gitignore（密钥/缓存/系统文件忽略规则）
 - 开启远程仓库 Wiki 功能
 - 启用 master 分支保护（需 PR + 1 人审查）
@@ -128,7 +134,8 @@
 
 本项目各版本的提交历史可查阅 `git log`。
 
-[Unreleased]: https://github.com/ember-hearted/statusline/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/ember-hearted/statusline/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/ember-hearted/statusline/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/ember-hearted/statusline/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/ember-hearted/statusline/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ember-hearted/statusline/compare/v0.3.0...v0.4.0

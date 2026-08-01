@@ -92,6 +92,8 @@ show_tools=true
 show_agents=true
 show_todos=true
 show_git_changes=true
+show_effort=true
+digit_style=segment
 
 _config_cache="$CACHE_DIR/config_parsed.sh"
 _need_parse=true
@@ -123,6 +125,8 @@ if [ "$_need_parse" = true ]; then
                 ["show_agents",        "panel.show_agents",         true],
                 ["show_todos",         "panel.show_todos",          true],
                 ["show_git_changes",   "panel.git.show_git_changes",true],
+                ["show_effort",        "panel.show_effort",        true],
+                ["digit_style",        "panel.digit_style",        "segment"],
             ];
             for (const [name, path, dflt] of fields) {
                 process.stdout.write(name + "=" + JSON.stringify(String(get(path, dflt))) + "\n");
@@ -145,6 +149,8 @@ if [ "$_need_parse" = true ]; then
         show_agents=$(parse_config "panel.show_agents" "true")
         show_todos=$(parse_config "panel.show_todos" "true")
         show_git_changes=$(parse_config "panel.git.show_git_changes" "true")
+        show_effort=$(parse_config "panel.show_effort" "true")
+        digit_style=$(parse_config "panel.digit_style" "segment")
     fi
 fi
 
@@ -159,6 +165,14 @@ full_path="${full_path%%\"*}"
 used_pct="${input#*\"used_percentage\":}"
 used_pct="${used_pct%%[!0-9]*}"
 [ -z "$used_pct" ] && used_pct="0"
+
+# 思考级别 effort.level（模型不支持 effort 参数时字段缺失，case 守卫兜底为空）
+effort="${input#*\"effort\":{\"level\":\"}"
+effort="${effort%%\"*}"
+case "$effort" in
+    low|medium|high|xhigh|max) ;;
+    *) effort="" ;;
+esac
 
 # 颜色判断
 if [ "$used_pct" -lt "$green_threshold" ] 2>/dev/null; then
@@ -411,20 +425,52 @@ if [ -n "$balance_script" ] && [ -f "$balance_script" ]; then
 fi
 
 # ========== 输出生成 ==========
-# 下标数字映射
+# 数字映射（panel.digit_style 控制）：
+#   segment  = 数码管 U+1FBF0-U+1FBF9（7 段显示字符，需终端字体支持，见 fonts/ 与 README）
+#   subscript= 下标数字（通用，任何终端可显示）
+segment_digits() {
+    local s="$1" out="" c
+    for ((i = 0; i < ${#s}; i++)); do
+        c="${s:i:1}"
+        case "$c" in
+            0) out="${out}🯰" ;; 1) out="${out}🯱" ;; 2) out="${out}🯲" ;; 3) out="${out}🯳" ;;
+            4) out="${out}🯴" ;; 5) out="${out}🯵" ;; 6) out="${out}🯶" ;; 7) out="${out}🯷" ;;
+            8) out="${out}🯸" ;; 9) out="${out}🯹" ;; *) out="${out}${c}" ;;
+        esac
+    done
+    printf '%s' "$out"
+}
+
 subscript_digits() {
     local s="$1"
     s="${s//0/₀}"; s="${s//1/₁}"; s="${s//2/₂}"; s="${s//3/₃}"; s="${s//4/₄}"
     s="${s//5/₅}"; s="${s//6/₆}"; s="${s//7/₇}"; s="${s//8/₈}"; s="${s//9/₉}"
     printf '%s' "$s"
 }
-used_pct_sub=$(subscript_digits "$used_pct")
+
+case "$digit_style" in
+    segment) used_pct_disp=$(segment_digits "$used_pct") ;;
+    *)       used_pct_disp=$(subscript_digits "$used_pct") ;;  # 其他值/旧版本回退下标，保证可显示
+esac
 
 # 进度条显示
-progress_display="${bar_color}❦ ${progress_bar}${used_pct_sub}${reset_color}"
+progress_display="${bar_color}❦ ${progress_bar}${used_pct_disp}${reset_color}"
 
-# 第一行: 进度条 · 余额 · 路径 · 分支 · 时间
-statusline="${progress_display}${balance_display} ${c_gray}↯${reset_color} ${dir_display}${branch_display}${time_display}"
+# 思考级别显示（[费用][high] ↯；字段缺失或关闭时整段不显示）
+effort_display=""
+if [ -n "$effort" ] && [ "$show_effort" = "true" ]; then
+    case "$effort" in
+        low)        effort_color="$c_gray"    ;;  # 低思考：低调灰
+        medium)     effort_color="$c_green"   ;;  # 中思考：绿
+        high)       effort_color="$c_yellow"  ;;  # 高思考：黄
+        xhigh|max)  effort_color="$c_red"     ;;  # 极高/最大思考：红
+        *)          effort_color="$c_gray"    ;;
+    esac
+    effort_display="${c_gray}[${reset_color}${effort_color}${effort}${reset_color}${c_gray}]${reset_color}"
+fi
+
+# 第一行: 进度条 · 余额 · 思考级别 · 路径 · 分支 · 时间
+statusline="${progress_display}${balance_display}${effort_display} ${c_gray}↯${reset_color} ${dir_display}${branch_display}${time_display}"
 
 # 主状态行前缀
 main_prefix=""
