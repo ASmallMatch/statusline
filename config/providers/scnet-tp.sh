@@ -58,7 +58,7 @@ CACHE_FILE="${CACHE_DIR}/balance_scnet_tp.txt"
 CACHE_TTL=300  # 5分钟缓存
 
 if [ -f "$CACHE_FILE" ]; then
-    cache_mtime=$(stat -f %m "$CACHE_FILE" 2>/dev/null || stat -c %Y "$CACHE_FILE" 2>/dev/null || echo 0)
+    cache_mtime=$(stat -c %Y "$CACHE_FILE" 2>/dev/null || stat -f %m "$CACHE_FILE" 2>/dev/null || echo 0)
     cache_age=$(($(date +%s) - cache_mtime))
     if [ "$cache_age" -lt "$CACHE_TTL" ] 2>/dev/null; then
         cat "$CACHE_FILE"

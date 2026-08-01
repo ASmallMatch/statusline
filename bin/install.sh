@@ -14,8 +14,10 @@ NC='\033[0m' # No Color
 
 # 脚本所在目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 项目根目录（install.sh 位于 bin/ 下）
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# 加载布局模块，导出 LAYOUT_ROOT（开发布局 = 项目根）与 find_file 等
+source "$SCRIPT_DIR/../lib/layout.sh"
+# 目录同源：项目根由 lib/layout.sh 推导，与运行时查找使用同一来源
+PROJECT_ROOT="$LAYOUT_ROOT"
 
 # 默认安装路径
 DEFAULT_INSTALL_DIR="$HOME/.claude/statusline"
@@ -148,6 +150,10 @@ copy_files() {
 
     # 复制配置文件
     cp "$PROJECT_ROOT/config/config.json" "$install_dir/"
+
+    # 复制布局与 JSON 模块（拍平到安装目录根，供 statusline.sh/query-balance.sh source）
+    cp "$LAYOUT_ROOT/lib/layout.sh" "$install_dir/"
+    cp "$LAYOUT_ROOT/lib/json.sh" "$install_dir/"
 
     # 复制 provider 脚本
     if [ -d "$PROJECT_ROOT/config/providers" ]; then
@@ -403,6 +409,11 @@ verify_installation() {
     # 检查关键文件
     if [ ! -f "$install_dir/statusline.sh" ]; then
         print_error "主脚本未找到"
+        return 1
+    fi
+
+    if [ ! -f "$install_dir/layout.sh" ]; then
+        print_error "布局模块未找到（lib/layout.sh 未复制到位）"
         return 1
     fi
 

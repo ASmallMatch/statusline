@@ -7,82 +7,15 @@ set -e
 # 读取输入
 read -r input || true  # 读 stdin JSON（read 内建替代 cat，零 fork；|| true 防 EOF 触发 set -e）
 
-# 配置目录
-CONFIG_DIR="${CLAUDE_STATUSLINE_DIR:-$HOME/.claude/statusline}"
+# 加载布局模块（自举：dev 在 bin/../lib/，安装拍平在同目录）
+if [ -f "${BASH_SOURCE[0]%/*}/../lib/layout.sh" ]; then
+    source "${BASH_SOURCE[0]%/*}/../lib/layout.sh"
+else
+    source "${BASH_SOURCE[0]%/*}/layout.sh"
+fi
+load_module "json.sh"  # node 不可用时的 JSON 慢解析 fallback
+
 CONFIG_FILE="$CONFIG_DIR/config.json"
-CACHE_DIR="$CONFIG_DIR/cache"
-
-# 脚本所在目录（用于开发模式下定位资源）
-SCRIPT_DIR_STATUSLINE="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"  # dirname 用参数扩展，省一次 fork
-
-# 解析配置（简单解析，不依赖 jq）
-# 支持嵌套路径，如 "colors.thresholds.green"
-parse_config() {
-    local key_path="$1"
-    local default="$2"
-
-    if [ -f "$CONFIG_FILE" ]; then
-        # 读取整个文件内容（SC2155: local 声明与赋值分开）
-        local config_content
-        config_content=$(cat "$CONFIG_FILE" 2>/dev/null)
-
-        # 将路径按.分割，逐级查找
-        local keys
-        keys=$(echo "$key_path" | tr '.' '\n')
-        local current="$config_content"
-        local found=true
-
-        for key in $keys; do
-            # 在当前层级查找 key
-            local pattern="\"$key\"[[:space:]]*:[[:space:]]*"
-            if echo "$current" | grep -q "$pattern"; then
-                # 提取该 key 的值部分
-                local value
-                value=$(echo "$current" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*[^,}]*" | head -1)
-                if [ -n "$value" ]; then
-                    # 获取值后的内容（可能是对象或简单值）
-                    local after_key
-                    after_key=$(echo "$value" | sed "s/\"$key\"[[:space:]]*:[[:space:]]*//")
-
-                    # 如果是对象（以{开头），在 current 中查找该对象的内容
-                    if echo "$after_key" | grep -q '^\s*{'; then
-                        # 提取对象内容（需要匹配花括号）
-                        local obj_start
-                        obj_start=$(echo "$current" | grep -b -o "\"$key\"[[:space:]]*:[[:space:]]*{" | head -1 | cut -d: -f1)
-                        if [ -n "$obj_start" ]; then
-                            # 从对象开始位置提取，尝试匹配花括号
-                            local obj_content
-                            obj_content=$(echo "$current" | tail -c +$((obj_start + 1)))
-                            # 简单匹配：找到第一个完整的 {...}
-                            # 使用 sed 匹配花括号对
-                            current=$(echo "$obj_content" | sed 's/[^{]*\({\).*/\1/; :a; N; s/\n//; ta' | head -c 1000 | sed 's/^{\([^{}]*\)}.*/\1/')
-                        else
-                            found=false
-                            break
-                        fi
-                    else
-                        # 简单值，直接使用
-                        current="$after_key"
-                    fi
-                else
-                    found=false
-                    break
-                fi
-            else
-                found=false
-                break
-            fi
-        done
-
-        if [ "$found" = true ] && [ -n "$current" ]; then
-            # 清理值（去掉引号）
-            echo "$current" | sed 's/^"//;s/"$//' | tr -d '[:space:]'
-            return
-        fi
-    fi
-
-    echo "$default"
-}
 
 # 读取配置
 # 性能要点：原 parse_config 用 grep/sed 管道解析 JSON，在 Windows Git Bash 上每次
@@ -144,19 +77,19 @@ if [ "$_need_parse" = true ]; then
             printf '%s\n' "$_config_parsed" > "$_config_cache"
         fi
     else
-        # fallback：node 不可用时走原解析（慢，但功能可用）
-        green_threshold=$(parse_config "colors.thresholds.green" "55")
-        yellow_threshold=$(parse_config "colors.thresholds.yellow" "75")
-        bar_length=$(parse_config "bar_length" "10")
-        show_git=$(parse_config "panel.git.show_git" "true")
-        show_time=$(parse_config "panel.show_time" "true")
-        branch_color=$(parse_config "colors.branch" "33" | tr -d '"')  # 默认橙色(33)，确保去掉引号
-        show_tools=$(parse_config "panel.show_tools" "true")
-        show_agents=$(parse_config "panel.show_agents" "true")
-        show_todos=$(parse_config "panel.show_todos" "true")
-        show_git_changes=$(parse_config "panel.git.show_git_changes" "true")
-        show_effort=$(parse_config "panel.show_effort" "true")
-        digit_style=$(parse_config "panel.digit_style" "segment")
+        # fallback：node 不可用时走 lib/json.sh 慢解析（grep/sed，功能可用）
+        green_threshold=$(json_get "$CONFIG_FILE" "colors.thresholds.green" "55")
+        yellow_threshold=$(json_get "$CONFIG_FILE" "colors.thresholds.yellow" "75")
+        bar_length=$(json_get "$CONFIG_FILE" "bar_length" "10")
+        show_git=$(json_get "$CONFIG_FILE" "panel.git.show_git" "true")
+        show_time=$(json_get "$CONFIG_FILE" "panel.show_time" "true")
+        branch_color=$(json_get "$CONFIG_FILE" "colors.branch" "33")  # 默认橙色(33)
+        show_tools=$(json_get "$CONFIG_FILE" "panel.show_tools" "true")
+        show_agents=$(json_get "$CONFIG_FILE" "panel.show_agents" "true")
+        show_todos=$(json_get "$CONFIG_FILE" "panel.show_todos" "true")
+        show_git_changes=$(json_get "$CONFIG_FILE" "panel.git.show_git_changes" "true")
+        show_effort=$(json_get "$CONFIG_FILE" "panel.show_effort" "true")
+        digit_style=$(json_get "$CONFIG_FILE" "panel.digit_style" "segment")
     fi
 fi
 
@@ -353,15 +286,8 @@ todos_line=""
 
 # 解析 transcript（如果路径存在且 Node.js 可用）
 if [ -n "$transcript_path" ] && [ -f "$transcript_path" ] && command -v node >/dev/null 2>&1; then
-    # 优先使用项目目录的解析器（开发模式），否则使用 CONFIG_DIR 中的
-    if [ -f "${SCRIPT_DIR_STATUSLINE}/../scripts/transcript-parser-lite.js" ]; then
-        parser_script="${SCRIPT_DIR_STATUSLINE}/../scripts/transcript-parser-lite.js"
-    elif [ -f "${SCRIPT_DIR_STATUSLINE}/transcript-parser-lite.js" ]; then
-        parser_script="${SCRIPT_DIR_STATUSLINE}/transcript-parser-lite.js"
-    else
-        parser_script="${CONFIG_DIR}/transcript-parser-lite.js"
-    fi
-    if [ -f "$parser_script" ]; then
+    # 定位解析器（开发布局 scripts/ 或安装布局根，由 lib/layout.sh 统一查找）
+    if parser_script=$(find_file "transcript-parser-lite.js"); then
         transcript_data=$(node "$parser_script" "$transcript_path" 2>/dev/null)
 
         if [ -n "$transcript_data" ]; then
@@ -387,14 +313,8 @@ fi
 # 调度器刷新。节流标记避免高频刷新时反复 spawn 调度器（调度器内部另有
 # provider 层 5min TTL，控制是否真发网络请求）。
 balance_display=""
-# 查找 query-balance.sh 调度器
-if [ -f "${SCRIPT_DIR_STATUSLINE}/query-balance.sh" ]; then
-    balance_script="${SCRIPT_DIR_STATUSLINE}/query-balance.sh"
-elif [ -f "${SCRIPT_DIR_STATUSLINE}/../bin/query-balance.sh" ]; then
-    balance_script="${SCRIPT_DIR_STATUSLINE}/../bin/query-balance.sh"
-elif [ -f "${CONFIG_DIR}/query-balance.sh" ]; then
-    balance_script="${CONFIG_DIR}/query-balance.sh"
-fi
+# 查找 query-balance.sh 调度器（lib/layout.sh 统一双布局定位）
+balance_script=$(find_file "query-balance.sh" 2>/dev/null || true)
 
 BALANCE_CACHE="$CACHE_DIR/balance_current.txt"
 BALANCE_MARKER="$CACHE_DIR/balance_refresh.marker"
