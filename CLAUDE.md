@@ -88,6 +88,8 @@ echo '{"cwd":"/home/user/test","display_name":"Claude Sonnet 4.6","used_percenta
 - `panel.show_tools`: 是否显示工具活动（默认 true）
 - `panel.show_agents`: 是否显示代理状态（默认 true）
 - `panel.show_todos`: 是否显示待办进度（默认 true）
+- `panel.show_effort`: 是否显示思考级别（默认 true，从输入 JSON 的 `effort.level` 读取，模型不支持时自动隐藏）
+- `panel.digit_style`: 百分比数字样式（默认 `segment` 数码管 / `subscript` 下标）。数码管用 Unicode U+1FBF0-U+1FBF9 7 段字符，需终端字体支持（项目自带 fonts/CascadiaCodeNF.ttf，`bash bin/install.sh -f` 安装，安装后终端字体需切到 Cascadia Code NF）；字体不支持时终端会显示方块，改 `subscript` 回退
 
 配置解析优先用一次 `node` 调用批量提取所有字段（约 60ms，避免反复 fork 子进程）；`node` 不可用时 fallback 到 `parse_config`（grep/sed 管道，在 Windows Git Bash 上约 1 秒/次）。支持嵌套路径如 `colors.thresholds.green`。
 

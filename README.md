@@ -69,6 +69,7 @@ bash bin/install.sh -c
 
 # 卸载
 bash bin/install.sh -u
+bash bin/install.sh -f
 ```
 
 ### 重新安装与缓存保留
@@ -212,8 +213,31 @@ chmod +x ~/.claude/statusline/statusline.sh
 | `panel.show_tools` | 是否显示工具活动 | true |
 | `panel.show_agents` | 是否显示代理状态 | true |
 | `panel.show_todos` | 是否显示待办进度 | true |
+| `panel.digit_style` | 百分比数字样式：`segment`（数码管 7 段）或 `subscript`（下标） | `segment` |
 
 | `bar_length` | 进度条长度 | 10 |
+
+### 数码管字体（panel.digit_style: "segment"）
+
+百分比数字默认使用 **7 段数码管字符**（Unicode U+1FBF0–U+1FBF9），显示效果：
+
+```
+❦ •■■■□□□□□□🯳🯰 [¥102.17] ↯ user/test ▸ no-git ▸ 19:37
+```
+
+数码管字符需要终端字体包含对应字形。项目自带 **Cascadia Code NF**（微软官方 Nerd Font 版，OFL 开源许可，`fonts/` 目录），三端通用：
+
+```bash
+# 一键安装字体（Windows/macOS/Linux 自动适配）
+bash bin/install.sh -f
+```
+
+安装后在终端设置中把字体切换为 **Cascadia Code NF** 即可。安装时的交互提示也会询问是否安装。
+
+> 若终端字体不支持（显示为方块/问号），可在 `config.json` 中切回通用下标样式：
+> ```json
+> { "panel": { "digit_style": "subscript" } }
+> ```
 
 ## 显示效果
 
