@@ -19,7 +19,8 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
       - name: Run shellcheck on .sh files
-        run: shellcheck bin/*.sh
+        # -S warning: 只拦截 warning/error，info/style 为建议项不阻塞
+        run: shellcheck -S warning bin/*.sh
 
   test:
     name: Test

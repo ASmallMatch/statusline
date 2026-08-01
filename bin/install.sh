@@ -25,12 +25,14 @@ print_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-# 暂停等待用户按键
+# 暂停等待用户按键（非交互环境如 CI 自动跳过，避免 /dev/tty 报错）
 pause() {
     echo ""
-    echo -n "按任意键继续..."
-    read -n 1 -s < /dev/tty 2>/dev/null || read -n 1 -s
-    echo ""
+    if [ -t 0 ]; then
+        echo -n "按任意键继续..."
+        read -n 1 -s < /dev/tty 2>/dev/null || read -n 1 -s
+        echo ""
+    fi
 }
 
 print_success() {
@@ -205,14 +207,14 @@ install_cookie_refresh_deps() {
     print_info "安装 cookie 刷新依赖 (Playwright)..."
 
     # 初始化 package.json 并安装 playwright
-    cd "$scripts_dir"
+    cd "$scripts_dir" || return 0
     if [ ! -f "package.json" ]; then
         npm init -y > /dev/null 2>&1
     fi
     npm install playwright 2>&1 | tail -1
     # npx playwright install chromium  # 跳过：cookie 刷新脚本复用系统 Chrome（channel:'chrome'），免下载 chromium 二进制
 
-    cd "$PROJECT_ROOT"
+    cd "$PROJECT_ROOT" || return 0
     print_success "cookie 刷新依赖安装完成"
 }
 
