@@ -22,11 +22,13 @@ parse_config() {
     local default="$2"
 
     if [ -f "$CONFIG_FILE" ]; then
-        # 读取整个文件内容
-        local config_content=$(cat "$CONFIG_FILE" 2>/dev/null)
+        # 读取整个文件内容（SC2155: local 声明与赋值分开）
+        local config_content
+        config_content=$(cat "$CONFIG_FILE" 2>/dev/null)
 
         # 将路径按.分割，逐级查找
-        local keys=$(echo "$key_path" | tr '.' '\n')
+        local keys
+        keys=$(echo "$key_path" | tr '.' '\n')
         local current="$config_content"
         local found=true
 
@@ -35,18 +37,22 @@ parse_config() {
             local pattern="\"$key\"[[:space:]]*:[[:space:]]*"
             if echo "$current" | grep -q "$pattern"; then
                 # 提取该 key 的值部分
-                local value=$(echo "$current" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*[^,}]*" | head -1)
+                local value
+                value=$(echo "$current" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*[^,}]*" | head -1)
                 if [ -n "$value" ]; then
                     # 获取值后的内容（可能是对象或简单值）
-                    local after_key=$(echo "$value" | sed "s/\"$key\"[[:space:]]*:[[:space:]]*//")
+                    local after_key
+                    after_key=$(echo "$value" | sed "s/\"$key\"[[:space:]]*:[[:space:]]*//")
 
                     # 如果是对象（以{开头），在 current 中查找该对象的内容
                     if echo "$after_key" | grep -q '^\s*{'; then
                         # 提取对象内容（需要匹配花括号）
-                        local obj_start=$(echo "$current" | grep -b -o "\"$key\"[[:space:]]*:[[:space:]]*{" | head -1 | cut -d: -f1)
+                        local obj_start
+                        obj_start=$(echo "$current" | grep -b -o "\"$key\"[[:space:]]*:[[:space:]]*{" | head -1 | cut -d: -f1)
                         if [ -n "$obj_start" ]; then
                             # 从对象开始位置提取，尝试匹配花括号
-                            local obj_content=$(echo "$current" | tail -c +$((obj_start + 1)))
+                            local obj_content
+                            obj_content=$(echo "$current" | tail -c +$((obj_start + 1)))
                             # 简单匹配：找到第一个完整的 {...}
                             # 使用 sed 匹配花括号对
                             current=$(echo "$obj_content" | sed 's/[^{]*\({\).*/\1/; :a; N; s/\n//; ta' | head -c 1000 | sed 's/^{\([^{}]*\)}.*/\1/')
@@ -155,7 +161,6 @@ if [ "$_need_parse" = true ]; then
 fi
 
 # 获取基本信息
-username="${USERNAME:-${USER:-$(whoami 2>/dev/null || echo user)}}"  # 常态零 fork；USERNAME/USER 都缺才 fallback whoami
 # 参数扩展提取 cwd（零 fork，替代 echo|grep|cut）
 full_path="${input#*\"cwd\":\"}"
 full_path="${full_path%%\"*}"
@@ -187,7 +192,6 @@ fi
 # 计算总点数 (每格100点)
 total_points=$((used_pct * bar_length))
 full_cells=$((total_points / 100))
-remainder=$((total_points % 100))
 
 # 电池符号: ■=满格 •=小格(正极效果) □=空格
 full_block="■"
@@ -218,7 +222,6 @@ while [ $i -lt $bar_length ]; do
 done
 
 # Git 信息（一次调用拿到仓库检查 + 分支 + 变动统计，替代原 rev-parse+branch+status 三次调用）
-git_info=""
 has_git=false
 branch=""
 git_status=""
@@ -259,16 +262,19 @@ if [ "$show_git" = "true" ]; then
         [ "$deleted" -ne 0 ] 2>/dev/null && git_status="${git_status}-${deleted} "
         [ "$staged" -ne 0 ] 2>/dev/null && git_status="${git_status}✓${staged} "
         git_status="${git_status% }"
-        git_info="${branch}${git_status}"
     fi
 fi
 
 # 颜色定义
 c_gray="\033[38;5;245m"      # 灰色
 c_cyan="\033[36m"           # 青色
+# shellcheck disable=SC2034  # 颜色表保留（当前未用，备用配色）
 c_blue="\033[34m"           # 蓝色
+# shellcheck disable=SC2034
 c_purple="\033[35m"         # 紫色
+# shellcheck disable=SC2034
 c_white="\033[37m"         # 白色
+# shellcheck disable=SC2034
 c_dim="\033[2m"             # 暗淡
 c_yellow="\033[33m"         # 黄色
 c_green="\033[32m"         # 绿色
@@ -472,8 +478,6 @@ fi
 # 第一行: 进度条 · 余额 · 思考级别 · 路径 · 分支 · 时间
 statusline="${progress_display}${balance_display}${effort_display} ${c_gray}↯${reset_color} ${dir_display}${branch_display}${time_display}"
 
-# 主状态行前缀
-main_prefix=""
 # 活动行前缀
 activity_prefix="  "
 
