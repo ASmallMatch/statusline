@@ -133,6 +133,29 @@ else
     fail "降级耗时 < 300ms (实际 $_ELAPSED ms)"
 fi
 
+# ---------- Test 6: transcript 统计缓存命中（同步路径零 fork 读缓存）----------
+echo "== Test 6: transcript 统计缓存命中 =="
+TRANSCRIPT="$WORK/transcript.jsonl"
+printf '{"message":{"content":[]}}\n' > "$TRANSCRIPT"
+TSTATS="$WORK/cache/transcript_stats_${TRANSCRIPT//[^a-zA-Z0-9._-]/_}.txt"
+cat > "$TSTATS" <<'TSEOF'
+tools_running=2
+agents_running=1
+todos_in_progress=1
+todos_total=3
+TSEOF
+touch "$TSTATS"
+run_timed "{\"cwd\":\"$PROJECT_ROOT\",\"display_name\":\"Claude\",\"used_percentage\":10,\"transcript_path\":\"$TRANSCRIPT\"}"
+assert_contains "活动行 Tools 2 running" "$_OUT" "Tools  2 running"
+assert_contains "活动行 Agents 1 running" "$_OUT" "Agents 1 running"
+assert_contains "活动行 Todos 1/3" "$_OUT" "Todos  1/3"
+# 缓存命中不应 spawn 后台 parser（统计文件不被改写）
+sleep 1
+if grep -q "tools_running=2" "$TSTATS" 2>/dev/null; then
+    pass "缓存命中未触发后台刷新"
+else
+    fail "缓存命中却触发了后台刷新（统计被改写）"
+fi
 echo ""
 echo "PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -286,6 +286,12 @@ bash bin/install.sh -f
 - `❦ Agents 2 running` - 有2个代理正在工作（青色）
 - `❦ Todos  2/5` - 2个待办进行中，总共5个（绿色）
 
+## 性能优化
+
+- **Transcript 活动行（stale-while-revalidate）**：Tools/Agents/Todos 统计改为同步读缓存、后台异步刷新，首次渲染不再等待 node 解析（Windows 每次 spawn node 约 70-100ms），首屏延迟明显下降
+- **布局自定位零 fork**：安装布局下 `lib/layout.sh` 自定位不再启动子 shell，每次渲染省 ~45ms
+- **后台刷新不阻塞渲染**：transcript 与余额的后台刷新子 shell 均重定向 stdout/stderr，避免调用方等待管道 EOF 拖住状态栏
+
 ## 文件结构
 
 ```

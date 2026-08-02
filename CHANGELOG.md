@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **statusline**: transcript 活动行改为 stale-while-revalidate（同步读统计缓存 + 后台刷新），首次渲染不再等待 node 解析（Windows 每次 spawn node 约 70-100ms），首屏延迟明显下降
+- **layout**: lib/layout.sh 自定位改为安装布局下零 fork（去掉 cd/basename 子 shell），每次状态栏渲染省 ~45ms
+
 ## [0.7.0] - 2026-08-01
 
 ### Added

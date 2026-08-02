@@ -253,6 +253,12 @@ Format description:
 - `❦ Agents 2 running` - 2 agents currently working (cyan)
 - `❦ Todos  2/5` - 2 todos in progress, 5 total (green)
 
+## Performance
+
+- **Transcript activity lines (stale-while-revalidate)**: Tools/Agents/Todos stats are read from a cache synchronously and refreshed in the background; the first render no longer waits for node parsing (~70-100ms per node spawn on Windows)
+- **Zero-fork layout self-location**: in the installed layout, `lib/layout.sh` resolves itself without subshells, saving ~45ms per render
+- **Background refresh never blocks rendering**: transcript and balance refresh subshells redirect stdout/stderr so callers do not wait on pipe EOF
+
 ## File Structure
 
 ```
