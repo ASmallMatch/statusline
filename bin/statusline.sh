@@ -269,7 +269,7 @@ if [ "$show_time" = "true" ]; then
     [ -n "$time_now" ] && time_display=" ${sep} ${c_gray}${time_now}${reset_color}"
 fi
 
-# ========== Transcript 解析 ==========
+# ========== Transcript 解析（stale-while-revalidate，与余额刷新同模式）==========
 # 获取 transcript 路径
 transcript_path=""
 case "$input" in
@@ -284,15 +284,20 @@ tools_line=""
 agents_line=""
 todos_line=""
 
-# 解析 transcript（如果路径存在且 Node.js 可用）
+# 同步路径零等待：transcript 未变化时直接读统计缓存（read 内建，零 fork）；
+# transcript 变化或首次渲染时后台 spawn parser 刷新，本次渲染不等待。
+# 背景：Windows Git Bash 上每次 spawn node 约 70-100ms（解析本身仅 ~30ms），
+# 是状态栏启动慢的主因之一，故改为与余额一致的 stale-while-revalidate。
+# 统计缓存按 transcript 路径命名（参数扩展清洗，零 fork），多会话互不干扰。
 if [ -n "$transcript_path" ] && [ -f "$transcript_path" ] && command -v node >/dev/null 2>&1; then
     # 定位解析器（开发布局 scripts/ 或安装布局根，由 lib/layout.sh 统一查找）
     if parser_script=$(find_file "transcript-parser-lite.js"); then
-        transcript_data=$(node "$parser_script" "$transcript_path" 2>/dev/null)
+        TRANSCRIPT_STATS="$CACHE_DIR/transcript_stats_${transcript_path//[^a-zA-Z0-9._-]/_}.txt"
 
-        if [ -n "$transcript_data" ]; then
-            # node 输出 key=value，while read 内建解析（零 fork，替代原 parse_* 的 grep）
-            tools_running=0; agents_running=0; todos_ip=0; todos_total=0
+        # 同步路径：transcript 未比统计缓存新 → 命中，零 fork 读统计
+        tools_running=0; agents_running=0; todos_ip=0; todos_total=0
+        if [ -f "$TRANSCRIPT_STATS" ] && [ ! "$transcript_path" -nt "$TRANSCRIPT_STATS" ]; then
+            # 统计缓存即 parser 输出的 key=value 四行，while read 内建解析（零 fork）
             while IFS='=' read -r _k _v; do
                 case "$_k" in
                     tools_running) tools_running="${_v}" ;;
@@ -300,11 +305,24 @@ if [ -n "$transcript_path" ] && [ -f "$transcript_path" ] && command -v node >/d
                     todos_in_progress) todos_ip="${_v}" ;;
                     todos_total) todos_total="${_v}" ;;
                 esac
-            done <<< "$transcript_data"
-            [ "$show_tools" = "true" ] && [ "$tools_running" -gt 0 ] 2>/dev/null && tools_line="❦ Tools  ${tools_running} running"
-            [ "$show_agents" = "true" ] && [ "$agents_running" -gt 0 ] 2>/dev/null && agents_line="❦ Agents ${agents_running} running"
-            [ "$show_todos" = "true" ] && [ "$todos_ip" -gt 0 ] 2>/dev/null && todos_line="❦ Todos  ${todos_ip}/${todos_total}"
+            done < "$TRANSCRIPT_STATS"
+        else
+            # 缓存未命中/过期：后台刷新（tmp + mv 原子写，失败不污染缓存），本次渲染不阻塞
+            mkdir -p "$CACHE_DIR"
+            (
+                _tmp="${TRANSCRIPT_STATS}.tmp.$$"
+                if node "$parser_script" "$transcript_path" > "$_tmp" 2>/dev/null && [ -s "$_tmp" ]; then
+                    mv "$_tmp" "$TRANSCRIPT_STATS"
+                else
+                    rm -f "$_tmp"
+                fi
+            ) >/dev/null 2>&1 &
         fi
+
+        # 输出活动行（用同步读到的统计；首次渲染可能为空，后台刷新完成后下轮渲染补齐）
+        [ "$show_tools" = "true" ] && [ "$tools_running" -gt 0 ] 2>/dev/null && tools_line="❦ Tools  ${tools_running} running"
+        [ "$show_agents" = "true" ] && [ "$agents_running" -gt 0 ] 2>/dev/null && agents_line="❦ Agents ${agents_running} running"
+        [ "$show_todos" = "true" ] && [ "$todos_ip" -gt 0 ] 2>/dev/null && todos_line="❦ Todos  ${todos_ip}/${todos_total}"
     fi
 fi
 
@@ -345,7 +363,7 @@ if [ -n "$balance_script" ] && [ -f "$balance_script" ]; then
             else
                 rm -f "$_tmp"
             fi
-        ) &
+        ) >/dev/null 2>&1 &
         printf '%s' "$_now" > "$BALANCE_MARKER"
     fi
 fi

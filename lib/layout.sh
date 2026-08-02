@@ -14,12 +14,21 @@
 # 本文件内全部为 bash 内建操作，零 fork（一次启动时的 $() 除外）。
 
 # 自定位：layout.sh 在布局根的 lib/ 子目录（开发），或布局根本身（安装拍平）
-LAYOUT_SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
-if [ "$(basename "$LAYOUT_SCRIPT_DIR")" = "lib" ]; then
-    LAYOUT_ROOT="$(cd "$LAYOUT_SCRIPT_DIR/.." && pwd)"
-else
-    LAYOUT_ROOT="$LAYOUT_SCRIPT_DIR"
-fi
+# 性能要点：安装布局下 source 到的是绝对路径，全参数扩展零 fork；
+# 仅开发布局（相对路径或残留 ../）才用子 shell cd 归一化，非性能关键路径。
+LAYOUT_SCRIPT_DIR="${BASH_SOURCE[0]%/*}"
+case "$LAYOUT_SCRIPT_DIR" in
+    /*|?:/*) ;;
+    *) LAYOUT_SCRIPT_DIR="$(cd "$LAYOUT_SCRIPT_DIR" && pwd)" ;;
+esac
+case "$LAYOUT_SCRIPT_DIR" in
+    */lib) LAYOUT_ROOT="${LAYOUT_SCRIPT_DIR%/lib}" ;;
+    *)     LAYOUT_ROOT="$LAYOUT_SCRIPT_DIR" ;;
+esac
+# 绝对路径里残留 ../（如 bash /abs/bin/install.sh 时 source 到 bin/../lib/layout.sh）再归一化
+case "$LAYOUT_ROOT" in
+    *"/../"*|*/..) LAYOUT_ROOT="$(cd "$LAYOUT_ROOT" && pwd)" ;;
+esac
 
 # 配置目录（环境变量可覆盖，与 install.sh 的 DEFAULT_INSTALL_DIR 约定一致）
 CONFIG_DIR="${CLAUDE_STATUSLINE_DIR:-$HOME/.claude/statusline}"
