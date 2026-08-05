@@ -33,12 +33,13 @@ now_epoch() {
 }
 
 # 计时跑一次 statusline，stdout 存入 _OUT，耗时(ms)存入 _ELAPSED
+# EPOCHREALTIME 是 bash 5+ 特性；macOS 系统 bash 3.2 下用 python3 取秒级浮点兜底
 run_timed() { # input
     local input="$1"
     local ts te
-    ts=$EPOCHREALTIME
+    ts=${EPOCHREALTIME:-$(python3 -c 'import time; print("%.6f" % time.time())')}
     _OUT=$(printf '%s' "$input" | bash "$STATUSLINE" 2>/dev/null)
-    te=$EPOCHREALTIME
+    te=${EPOCHREALTIME:-$(python3 -c 'import time; print("%.6f" % time.time())')}
     _ELAPSED=$(awk -v s="$ts" -v e="$te" 'BEGIN{printf "%.0f", (e - s) * 1000}')
 }
 
@@ -61,11 +62,10 @@ bar_length="10"
 show_git="true"
 show_time="true"
 branch_color="33"
-show_tools="true"
-show_agents="true"
-show_todos="true"
 show_git_changes="true"
 CFGEOF
+# Tasks 计数读取 CLAUDE_CONFIG_DIR/tasks/，指向临时目录与真实环境隔离
+export CLAUDE_CONFIG_DIR="$WORK/claude"
 
 INPUT="{\"cwd\":\"$PROJECT_ROOT\",\"display_name\":\"Claude Sonnet 4.6\",\"used_percentage\":30}"
 
@@ -133,29 +133,36 @@ else
     fail "降级耗时 < 300ms (实际 $_ELAPSED ms)"
 fi
 
-# ---------- Test 6: transcript 统计缓存命中（同步路径零 fork 读缓存）----------
-echo "== Test 6: transcript 统计缓存命中 =="
+# ---------- Test 6: Tasks 计数（读 CLAUDE_CONFIG_DIR/tasks/session-<id前8位>）----------
+echo "== Test 6: Tasks 计数 =="
+TDIR="$CLAUDE_CONFIG_DIR/tasks/session-abcd1234"
+mkdir -p "$TDIR"
+printf '{"id":"1","status":"completed"}\n' > "$TDIR/1.json"
+printf '{"id":"2","status":"in_progress"}\n' > "$TDIR/2.json"
+printf '{"id":"3","status":"pending"}\n' > "$TDIR/3.json"
+run_timed "{\"cwd\":\"$PROJECT_ROOT\",\"display_name\":\"Claude\",\"used_percentage\":10,\"session_id\":\"abcd1234-0000-0000-0000-000000000000\"}"
+assert_contains "Tasks 计数 1/3" "$_OUT" "Tasks  1/3"
+# 无 session_id / 无任务目录时不显示 Tasks 行
+run_timed "$INPUT"
+assert_not_contains "无任务会话不显示 Tasks 行" "$_OUT" "Tasks"
+
+# ---------- Test 7: 布局（分支+PR 第二行）与旧活动行移除 ----------
+echo "== Test 7: 布局与旧活动行移除 =="
+run_timed "{\"cwd\":\"$PROJECT_ROOT\",\"display_name\":\"Claude\",\"used_percentage\":10,\"pr\":{\"number\":7,\"url\":\"https://example.com/pull/7\",\"review_state\":\"approved\"}}"
+_line2=$(printf '%s\n' "$_OUT" | sed -n '2p')
+assert_contains "第二行含分支 master" "$_line2" "master"
+assert_contains "第二行含 PR 徽章" "$_line2" "#7 ✓"
+# 第一行不再含分支/PR
+_line1=$(printf '%s\n' "$_OUT" | sed -n '1p')
+assert_not_contains "第一行不含分支" "$_line1" "master"
+assert_not_contains "第一行不含 PR" "$_line1" "#7"
+# 旧 transcript 活动行已移除：即使输入带 transcript_path 也不输出 Tools/Agents/Todos
 TRANSCRIPT="$WORK/transcript.jsonl"
 printf '{"message":{"content":[]}}\n' > "$TRANSCRIPT"
-TSTATS="$WORK/cache/transcript_stats_${TRANSCRIPT//[^a-zA-Z0-9._-]/_}.txt"
-cat > "$TSTATS" <<'TSEOF'
-tools_running=2
-agents_running=1
-todos_in_progress=1
-todos_total=3
-TSEOF
-touch "$TSTATS"
 run_timed "{\"cwd\":\"$PROJECT_ROOT\",\"display_name\":\"Claude\",\"used_percentage\":10,\"transcript_path\":\"$TRANSCRIPT\"}"
-assert_contains "活动行 Tools 2 running" "$_OUT" "Tools  2 running"
-assert_contains "活动行 Agents 1 running" "$_OUT" "Agents 1 running"
-assert_contains "活动行 Todos 1/3" "$_OUT" "Todos  1/3"
-# 缓存命中不应 spawn 后台 parser（统计文件不被改写）
-sleep 1
-if grep -q "tools_running=2" "$TSTATS" 2>/dev/null; then
-    pass "缓存命中未触发后台刷新"
-else
-    fail "缓存命中却触发了后台刷新（统计被改写）"
-fi
+assert_not_contains "不再显示 Tools 行" "$_OUT" "Tools"
+assert_not_contains "不再显示 Agents 行" "$_OUT" "Agents"
+assert_not_contains "不再显示 Todos 行" "$_OUT" "Todos"
 echo ""
 echo "PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]

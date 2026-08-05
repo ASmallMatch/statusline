@@ -140,9 +140,8 @@ bash bin/install.sh -u
       "show_git_changes": true
     },
     "show_time": true,
-    "show_tools": true,
-    "show_agents": true,
-    "show_todos": true
+    "show_tasks": true,
+    "show_pr": true
   }
 }
 ```

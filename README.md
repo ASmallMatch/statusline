@@ -11,14 +11,15 @@
 
 - **进度条前置**：电池风格进度条显示在第一行开头
 - **两级目录显示**：显示 `parent/current` 格式的路径
-- **电池风格进度条**：`•` 正极 + `■` 满格 + `□` 空格 + 下标百分比
+- **电池风格进度条**：`▣` 正极 + `🀫` 满格 + `🀆` 空格 + 百分比数字
 - **动态颜色**：根据 Context 使用量显示不同颜色
   - 🟢 绿色 (< 55%)
   - 🟡 黄色 (55% ~ 75%)
   - 🔴 红色 (> 75%)
 - **LLM 余额查询**：可配置的多 provider 模式，支持 DeepSeek、Kimi、Xiaomi MiMo、SCNet（API/TokenPlan 双模式自动路由）、火山方舟（Coding/Agent Plan 双模式自动路由）等厂商余额/用量显示
 - **智能切换**：配置多个 provider，自动显示当前生效（token 有效）的那一个
-- **实时活动显示**：显示进行中的 Tools、Agents、Todos 数量
+- **Tasks 进度显示**：显示 TaskCreate 任务完成/总数（第三行）
+- **PR 徽章**：当前分支开放 PR 的编号与评审状态（第二行，终端支持时可点击）
 - **Git 状态集成**：显示分支名和文件变动统计
 - **跨平台**：Windows (Git Bash/WSL)、macOS、Linux
 
@@ -69,7 +70,6 @@ bash bin/install.sh -c
 
 # 卸载
 bash bin/install.sh -u
-bash bin/install.sh -f
 ```
 
 ### 重新安装与缓存保留
@@ -97,7 +97,6 @@ cp bin/statusline.sh ~/.claude/statusline/
 cp bin/query-balance.sh ~/.claude/statusline/
 cp config/config.json ~/.claude/statusline/
 cp config/providers/*.sh ~/.claude/statusline/providers/
-cp scripts/transcript-parser-lite.js ~/.claude/statusline/
 mkdir -p ~/.claude/statusline/scripts
 cp scripts/refresh-xiaomimimo-cookie.js ~/.claude/statusline/scripts/
 cp scripts/refresh-xiaomimimo-cookie.sh ~/.claude/statusline/scripts/
@@ -163,9 +162,8 @@ chmod +x ~/.claude/statusline/statusline.sh
       "show_git_changes": true
     },
     "show_time": true,
-    "show_tools": true,
-    "show_agents": true,
-    "show_todos": true
+    "show_tasks": true,
+    "show_pr": true
   }
 }
 ```
@@ -210,87 +208,57 @@ chmod +x ~/.claude/statusline/statusline.sh
 | `panel.git.show_git` | 是否显示 Git 状态 | true |
 | `panel.git.show_git_changes` | 是否显示文件变动统计 | true |
 | `panel.show_time` | 是否显示时间 | true |
-| `panel.show_tools` | 是否显示工具活动 | true |
-| `panel.show_agents` | 是否显示代理状态 | true |
-| `panel.show_todos` | 是否显示待办进度 | true |
-| `panel.digit_style` | 百分比数字样式：`segment`（数码管 7 段）或 `subscript`（下标） | `segment` |
+| `panel.show_tasks` | 是否显示 TaskCreate 任务进度（完成/总数） | true |
+| `panel.show_pr` | 是否显示当前分支开放 PR 的编号与评审状态（支持终端中可点击） | true |
 
 | `bar_length` | 进度条长度 | 10 |
-
-### 数码管字体（panel.digit_style: "segment"）
-
-百分比数字默认使用 **7 段数码管字符**（Unicode U+1FBF0–U+1FBF9），显示效果：
-
-```
-❦ •■■■□□□□□□🯳🯰 ‹¥102.17› ↯ user/test ▸ no-git ▸ 19:37
-```
-
-数码管字符需要终端字体包含对应字形。项目自带 **Cascadia Code NF**（微软官方 Nerd Font 版，OFL 开源许可，`fonts/` 目录），三端通用：
-
-```bash
-# 一键安装字体（Windows/macOS/Linux 自动适配）
-bash bin/install.sh -f
-```
-
-安装后在终端设置中把字体切换为 **Cascadia Code NF** 即可。安装时的交互提示也会询问是否安装。
-
-> 若终端字体不支持（显示为方块/问号），可在 `config.json` 中切回通用下标样式：
-> ```json
-> { "panel": { "digit_style": "subscript" } }
-> ```
 
 ## 显示效果
 
 ```
-# 主状态行（DeepSeek）
-❦ •■■■■■□□□□₅₆‹¥98.66› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
+# 第一行：主状态行（Kimi 示例）
+❦ ▣🀫🀫🀫🀫🀆🀆🀆🀆🀆 56 ▸ ⟦Kimi 69%/10%⟧ ↯ claude-space/statusline ▸ 05:42
 
-# 主状态行（Kimi）
-❦ •■■■■■□□□□₅₆‹Kimi 69%/10%› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
+# 第二行：Git 分支与 PR 徽章（有分支或 PR 时显示）
+    test ~2 -1 ▸ #7 ✓
 
-
-# 主状态行（Xiaomi MiMo）
-❦ •■■■■■□□□□₅₆‹Mimo 74%(30.3亿/41.0亿)› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
-
-# 主状态行（SCNet）
-❦ •■■■■■□□□□₅₆‹SCNet 49%(490万/1000万)› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
-
-# 有活动时的附加行
-  ❦ Tools  3 running
-  ❦ Agents 2 running
-  ❦ Todos  2/5
+# 第三行：Tasks 进度（使用 TaskCreate 时显示）
+  ❦ Tasks  2/5
 ```
 
 格式说明：
 
 - `❦` - 进度条前缀符号
-- `•` - 电池正极（始终显示）
-- `■■■■■` - 已使用的 Context（绿色/黄色/红色）
-- `□□□□` - 未使用的 Context
-- `₅₆` - 使用百分比（下标数字）
-- `‹¥98.66›` - DeepSeek 余额（括号内着色）
-- `‹Kimi 69%/10%›` - Kimi Coding Plan 用量（5h使用率/周度使用率，各自着色）
-- `‹Mimo 74%(30.3亿/41.0亿)›` - Xiaomi MiMo Token Plan 用量（百分比着色）
-- `‹SCNet 49%(490万/1000万)›` - SCNet 资源用量（API 模式，百分比着色，已用/总量）
-- `‹SCNet-TP 0%(0/6万)›` - SCNet TokenPlan 用量（CREDITS，百分比着色，已用/总量）
-- `‹方舟Coding 21%/3%›` - 火山方舟 Coding Plan 用量（5h/周使用率，各自着色）；Agent Plan 显示为 `方舟Agent`
+- `▣` - 电池正极（始终显示）
+- `█████` - 已使用的 Context（绿色/黄色/红色）
+- `░░░░░` - 未使用的 Context
+- `56` - 使用百分比
+- `⟦¥98.66⟧` - DeepSeek 余额（括号内着色）
+- `⟦Kimi 69%/10%⟧` - Kimi Coding Plan 用量（5h使用率/周度使用率，各自着色）
+- `⟦Mimo 74%(30.3亿/41.0亿)⟧` - Xiaomi MiMo Token Plan 用量（百分比着色）
+- `⟦SCNet 49%(490万/1000万)⟧` - SCNet 资源用量（API 模式，百分比着色，已用/总量）
+- `⟦SCNet-TP 0%(0/6万)⟧` - SCNet TokenPlan 用量（CREDITS，百分比着色，已用/总量）
+- `⟦方舟Coding 21%/3%⟧` - 火山方舟 Coding Plan 用量（5h/周使用率，各自着色）；Agent Plan 显示为 `方舟Agent`
 - `↯` - 余额与路径之间的分隔符
-- `▸` - 路径、分支、时间之间的分隔符
+- `▸` - 第一行百分比与余额、路径与时间、第二行分支与 PR 之间的分隔符
 - `claude-space/statusline` - 两级目录名（青色）
 - ` test` - Git 分支（橙色）
 - `~2 -1` - 文件变动统计（修改2个，删除1个）
 - `05:42` - 时间（灰色）
 
-**活动行**（仅当有进行中的活动时显示）：
-- `❦ Tools  3 running` - 有3个工具正在执行（黄色）
-- `❦ Agents 2 running` - 有2个代理正在工作（青色）
-- `❦ Todos  2/5` - 2个待办进行中，总共5个（绿色）
+**第二行**（有 Git 分支或 PR 时显示，行首缩进两空格）：
+- `  test` - Git 分支（橙色）
+- `~2 -1` - 文件变动统计（修改2个，删除1个）
+- `#7 ✓` - PR 徽章：`✓` 已批准（绿）/ `✗` 变更请求（红）/ `…` 待审（黄）/ `✎` 草稿（灰）；终端支持时整体可点击跳转
+
+**第三行**（使用 TaskCreate 任务系统时显示，行首缩进两空格，紫色）：
+- `❦ Tasks  2/5` - 任务完成 2/5
 
 ## 性能优化
 
-- **Transcript 活动行（stale-while-revalidate）**：Tools/Agents/Todos 统计改为同步读缓存、后台异步刷新，首次渲染不再等待 node 解析（Windows 每次 spawn node 约 70-100ms），首屏延迟明显下降
+- **Tasks 计数零 fork**：任务文件逐个 bash 内建读取（`$(<file)`），不 fork 外部命令
 - **布局自定位零 fork**：安装布局下 `lib/layout.sh` 自定位不再启动子 shell，每次渲染省 ~45ms
-- **后台刷新不阻塞渲染**：transcript 与余额的后台刷新子 shell 均重定向 stdout/stderr，避免调用方等待管道 EOF 拖住状态栏
+- **后台刷新不阻塞渲染**：余额后台刷新子 shell 重定向 stdout/stderr，避免调用方等待管道 EOF 拖住状态栏
 
 ## 文件结构
 
@@ -317,8 +285,7 @@ bash bin/install.sh -f
 │   ├── volces_cookie.txt              # 火山方舟认证 cookie
 │   ├── balance_volces_coding.txt      # 火山方舟 Coding Plan 用量缓存
 │   ├── balance_volces_agent.txt       # 火山方舟 Agent Plan 用量缓存
-│   └── balance_*.txt                  # 其他 provider 余额缓存
-└── transcript-parser-lite.js # Transcript 解析器
+    └── balance_*.txt                  # 其他 provider 余额缓存
 ```
 
 | 文件 | 说明 |
@@ -328,7 +295,6 @@ bash bin/install.sh -f
 | `query-balance.sh` | 余额调度器：读取配置并调用对应 provider（支持 jq 多 provider 解析） |
 | `providers/` | Provider 脚本目录，每个 `.sh` 封装一个厂商的查询逻辑，自行管理颜色和格式 |
 | `scripts/` | 辅助脚本目录，包含 MiMo cookie 自动刷新等工具 |
-| `transcript-parser-lite.js` | Transcript 解析器：提取 Tools/Agents/Todos 状态 |
 | `install.sh` | 安装脚本：部署到 `~/.claude/statusline/` |
 
 ## Provider 说明
