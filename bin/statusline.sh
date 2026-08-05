@@ -342,7 +342,7 @@ BALANCE_REFRESH_TTL=300  # 与 provider 缓存对齐，5 分钟内不重复 spaw
 if [ -f "$BALANCE_CACHE" ]; then
     balance_result=""
     read -r balance_result < "$BALANCE_CACHE" 2>/dev/null || true
-    [ -n "$balance_result" ] && balance_display="${c_gray}[${reset_color}${balance_result}${c_gray}]${reset_color}"
+    [ -n "$balance_result" ] && balance_display="${c_gray}‹${reset_color}${balance_result}${c_gray}›${reset_color}"
 fi
 
 # 后台异步刷新（节流：TTL 内不重复 spawn）。用 printf/read 内建取时间，避免 fork
@@ -393,14 +393,14 @@ subscript_digits() {
 }
 
 case "$digit_style" in
-    segment) used_pct_disp=$(segment_digits "$used_pct") ;;
+    segment) used_pct_disp="\033[1m$(segment_digits "$used_pct")" ;;  # 数码管加粗，视觉上更醒目
     *)       used_pct_disp=$(subscript_digits "$used_pct") ;;  # 其他值/旧版本回退下标，保证可显示
 esac
 
 # 进度条显示
 progress_display="${bar_color}❦ ${progress_bar}${used_pct_disp}${reset_color}"
 
-# 思考级别显示（[费用][high] ↯；字段缺失或关闭时整段不显示）
+# 思考级别显示（‹费用›‹high› ↯；字段缺失或关闭时整段不显示）
 effort_display=""
 if [ -n "$effort" ] && [ "$show_effort" = "true" ]; then
     case "$effort" in
@@ -410,7 +410,7 @@ if [ -n "$effort" ] && [ "$show_effort" = "true" ]; then
         xhigh|max)  effort_color="$c_red"     ;;  # 极高/最大思考：红
         *)          effort_color="$c_gray"    ;;
     esac
-    effort_display="${c_gray}[${reset_color}${effort_color}${effort}${reset_color}${c_gray}]${reset_color}"
+    effort_display="${c_gray}‹${reset_color}${effort_color}${effort}${reset_color}${c_gray}›${reset_color}"
 fi
 
 # 第一行: 进度条 · 余额 · 思考级别 · 路径 · 分支 · 时间
