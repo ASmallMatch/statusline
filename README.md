@@ -222,7 +222,7 @@ chmod +x ~/.claude/statusline/statusline.sh
 百分比数字默认使用 **7 段数码管字符**（Unicode U+1FBF0–U+1FBF9），显示效果：
 
 ```
-❦ •■■■□□□□□□🯳🯰 [¥102.17] ↯ user/test ▸ no-git ▸ 19:37
+❦ •■■■□□□□□□🯳🯰 ‹¥102.17› ↯ user/test ▸ no-git ▸ 19:37
 ```
 
 数码管字符需要终端字体包含对应字形。项目自带 **Cascadia Code NF**（微软官方 Nerd Font 版，OFL 开源许可，`fonts/` 目录），三端通用：
@@ -243,17 +243,17 @@ bash bin/install.sh -f
 
 ```
 # 主状态行（DeepSeek）
-❦ •■■■■■□□□□₅₆[¥98.66] ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
+❦ •■■■■■□□□□₅₆‹¥98.66› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
 
 # 主状态行（Kimi）
-❦ •■■■■■□□□□₅₆[Kimi 69%/10%] ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
+❦ •■■■■■□□□□₅₆‹Kimi 69%/10%› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
 
 
 # 主状态行（Xiaomi MiMo）
-❦ •■■■■■□□□□₅₆[Mimo 74%(30.3亿/41.0亿)] ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
+❦ •■■■■■□□□□₅₆‹Mimo 74%(30.3亿/41.0亿)› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
 
 # 主状态行（SCNet）
-❦ •■■■■■□□□□₅₆[SCNet 49%(490万/1000万)] ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
+❦ •■■■■■□□□□₅₆‹SCNet 49%(490万/1000万)› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
 
 # 有活动时的附加行
   ❦ Tools  3 running
@@ -268,12 +268,12 @@ bash bin/install.sh -f
 - `■■■■■` - 已使用的 Context（绿色/黄色/红色）
 - `□□□□` - 未使用的 Context
 - `₅₆` - 使用百分比（下标数字）
-- `[¥98.66]` - DeepSeek 余额（括号内着色）
-- `[Kimi 69%/10%]` - Kimi Coding Plan 用量（5h使用率/周度使用率，各自着色）
-- `[Mimo 74%(30.3亿/41.0亿)]` - Xiaomi MiMo Token Plan 用量（百分比着色）
-- `[SCNet 49%(490万/1000万)]` - SCNet 资源用量（API 模式，百分比着色，已用/总量）
-- `[SCNet-TP 0%(0/6万)]` - SCNet TokenPlan 用量（CREDITS，百分比着色，已用/总量）
-- `[方舟Coding 21%/3%]` - 火山方舟 Coding Plan 用量（5h/周使用率，各自着色）；Agent Plan 显示为 `方舟Agent`
+- `‹¥98.66›` - DeepSeek 余额（括号内着色）
+- `‹Kimi 69%/10%›` - Kimi Coding Plan 用量（5h使用率/周度使用率，各自着色）
+- `‹Mimo 74%(30.3亿/41.0亿)›` - Xiaomi MiMo Token Plan 用量（百分比着色）
+- `‹SCNet 49%(490万/1000万)›` - SCNet 资源用量（API 模式，百分比着色，已用/总量）
+- `‹SCNet-TP 0%(0/6万)›` - SCNet TokenPlan 用量（CREDITS，百分比着色，已用/总量）
+- `‹方舟Coding 21%/3%›` - 火山方舟 Coding Plan 用量（5h/周使用率，各自着色）；Agent Plan 显示为 `方舟Agent`
 - `↯` - 余额与路径之间的分隔符
 - `▸` - 路径、分支、时间之间的分隔符
 - `claude-space/statusline` - 两级目录名（青色）

@@ -220,10 +220,10 @@ The system automatically reads `ANTHROPIC_BASE_URL`, extracts the provider ident
 
 ```
 # Main status line (DeepSeek)
-❦ •■■■■■□□□□₅₆[¥98.66] ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
+❦ •■■■■■□□□□₅₆‹¥98.66› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
 
 # Main status line (Kimi)
-❦ •■■■■■□□□□₅₆[Kimi 69%/10%] ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
+❦ •■■■■■□□□□₅₆‹Kimi 69%/10%› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
 
 # Activity lines (shown only when activities are running)
   ❦ Tools  3 running
@@ -238,9 +238,9 @@ Format description:
 - `■■■■■` - Used Context (green/yellow/red)
 - `□□□□` - Unused Context
 - `₅₆` - Usage percentage (subscript digits)
-- `[¥98.66]` - DeepSeek balance (colored inside brackets)
-- `[Kimi 69%/10%]` - Kimi Coding Plan usage (5h rate / weekly quota, each colored independently)
-- `[方舟Coding 21%/3%]` - Volcengine Ark Coding Plan usage (5h / weekly rate, each colored independently); Agent Plan shows as `方舟Agent`
+- `‹¥98.66›` - DeepSeek balance (colored inside brackets)
+- `‹Kimi 69%/10%›` - Kimi Coding Plan usage (5h rate / weekly quota, each colored independently)
+- `‹方舟Coding 21%/3%›` - Volcengine Ark Coding Plan usage (5h / weekly rate, each colored independently); Agent Plan shows as `方舟Agent`
 - `↯` - Separator between balance and path
 - `▸` - Separator between path, branch, and time
 - `claude-space/statusline` - Two-level directory name (cyan)
