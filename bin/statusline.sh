@@ -27,12 +27,10 @@ bar_length=10
 show_git=true
 show_time=true
 branch_color=33
-show_tools=true
-show_agents=true
-show_todos=true
+show_tasks=true
+show_pr=true
 show_git_changes=true
 show_effort=true
-digit_style=segment
 
 _config_cache="$CACHE_DIR/config_parsed.sh"
 _need_parse=true
@@ -60,12 +58,10 @@ if [ "$_need_parse" = true ]; then
                 ["show_git",           "panel.git.show_git",        true],
                 ["show_time",          "panel.show_time",           true],
                 ["branch_color",       "colors.branch",             "33"],
-                ["show_tools",         "panel.show_tools",          true],
-                ["show_agents",        "panel.show_agents",         true],
-                ["show_todos",         "panel.show_todos",          true],
+                ["show_tasks",         "panel.show_tasks",          true],
+                ["show_pr",            "panel.show_pr",             true],
                 ["show_git_changes",   "panel.git.show_git_changes",true],
                 ["show_effort",        "panel.show_effort",        true],
-                ["digit_style",        "panel.digit_style",        "segment"],
             ];
             for (const [name, path, dflt] of fields) {
                 process.stdout.write(name + "=" + JSON.stringify(String(get(path, dflt))) + "\n");
@@ -84,12 +80,10 @@ if [ "$_need_parse" = true ]; then
         show_git=$(json_get "$CONFIG_FILE" "panel.git.show_git" "true")
         show_time=$(json_get "$CONFIG_FILE" "panel.show_time" "true")
         branch_color=$(json_get "$CONFIG_FILE" "colors.branch" "33")  # 默认橙色(33)
-        show_tools=$(json_get "$CONFIG_FILE" "panel.show_tools" "true")
-        show_agents=$(json_get "$CONFIG_FILE" "panel.show_agents" "true")
-        show_todos=$(json_get "$CONFIG_FILE" "panel.show_todos" "true")
+        show_tasks=$(json_get "$CONFIG_FILE" "panel.show_tasks" "true")
+        show_pr=$(json_get "$CONFIG_FILE" "panel.show_pr" "true")
         show_git_changes=$(json_get "$CONFIG_FILE" "panel.git.show_git_changes" "true")
         show_effort=$(json_get "$CONFIG_FILE" "panel.show_effort" "true")
-        digit_style=$(json_get "$CONFIG_FILE" "panel.digit_style" "segment")
     fi
 fi
 
@@ -126,10 +120,10 @@ fi
 total_points=$((used_pct * bar_length))
 full_cells=$((total_points / 100))
 
-# 电池符号: ■=满格 •=小格(正极效果) □=空格
-full_block="■"
-small_block="•"
-empty_block="□"
+# 电池符号: 🀫=满格(麻将牌背) ▣=小格(正极效果) 🀆=空格(麻将白板)
+full_block="🀫"
+small_block="▣"
+empty_block="🀆"
 
 progress_bar=""
 i=0
@@ -203,8 +197,7 @@ c_gray="\033[38;5;245m"      # 灰色
 c_cyan="\033[36m"           # 青色
 # shellcheck disable=SC2034  # 颜色表保留（当前未用，备用配色）
 c_blue="\033[34m"           # 蓝色
-# shellcheck disable=SC2034
-c_purple="\033[35m"         # 紫色
+c_purple="\033[35m"         # 紫色（Tasks 行）
 # shellcheck disable=SC2034
 c_white="\033[37m"         # 白色
 # shellcheck disable=SC2034
@@ -213,8 +206,6 @@ c_yellow="\033[33m"         # 黄色
 c_green="\033[32m"         # 绿色
 c_red="\033[31m"           # 红色
 reset_color="\033[0m"
-
-# transcript 活动行计数由 node 输出 key=value，bash while read 内建解析（见 Transcript 解析块）
 
 # 显示两级目录名（如：parent/current）
 get_two_level_path() {
@@ -244,21 +235,58 @@ dir_display="${c_cyan}${display_path}${reset_color}"
 # 分隔符
 sep="${c_gray}▸${reset_color}"
 
-# Git 信息简化
+# Git 信息简化（第二行行首片段，无前导分隔符）
 branch_display=""
 branch_color_code="\033[${branch_color}m"
 if [ "$show_git" = "true" ]; then
     if [ "$has_git" = true ]; then
+        branch_display="${branch_color_code} ${branch}${reset_color}"
         # 根据配置决定是否显示文件变动详情
-        if [ "$show_git_changes" = "true" ] && [ -n "$git_status" ]; then
-            branch_display=" ${sep} ${branch_color_code} ${branch}${reset_color} ${git_status}"
-        else
-            branch_display=" ${sep} ${branch_color_code} ${branch}${reset_color}"
-        fi
+        [ "$show_git_changes" = "true" ] && [ -n "$git_status" ] && branch_display="${branch_display} ${git_status}"
     else
         # 没有 Git 仓库时显示 no-git
-        branch_display=" ${sep} ${c_gray}no-git${reset_color}"
+        branch_display="${c_gray}no-git${reset_color}"
     fi
+fi
+
+# PR 徽章（输入 JSON 的 pr 对象；当前分支无开放 PR 时字段缺席，整段不显示）
+pr_display=""
+if [ "$show_pr" = "true" ]; then
+    case "$input" in
+        *'"pr":{"number":'*)
+            pr_number="${input#*\"pr\":{\"number\":}"
+            pr_number="${pr_number%%[!0-9]*}"
+            # 评审状态（pr 存在时也可能独立缺席）
+            pr_state=""
+            case "$input" in
+                *'"review_state":"'*)
+                    pr_state="${input#*\"review_state\":\"}"
+                    pr_state="${pr_state%%\"*}"
+                    ;;
+            esac
+            case "$pr_state" in
+                approved)          pr_icon=" ✓"; pr_color="$c_green"  ;;
+                changes_requested) pr_icon=" ✗"; pr_color="$c_red"    ;;
+                pending)           pr_icon=" …"; pr_color="$c_yellow" ;;
+                draft)             pr_icon=" ✎"; pr_color="$c_gray"   ;;
+                *)                 pr_icon="";    pr_color="$c_gray"  ;;
+            esac
+            if [ -n "$pr_number" ]; then
+                pr_text="#${pr_number}${pr_icon}"
+                # OSC 8 可点击链接（iTerm2/Kitty/WezTerm 等支持；不支持的终端静默忽略）
+                case "$input" in
+                    *'"url":"http'*)
+                        pr_url="${input#*\"url\":\"}"
+                        pr_url="${pr_url%%\"*}"
+                        case "$pr_url" in
+                            http*) pr_text="\033]8;;${pr_url}\033\\${pr_text}\033]8;;\033\\" ;;
+                        esac
+                        ;;
+                esac
+                pr_display="${pr_color}${pr_text}${reset_color}"
+            fi
+            ;;
+    esac
 fi
 
 # 时间（只显示时间，省略日期）
@@ -269,60 +297,32 @@ if [ "$show_time" = "true" ]; then
     [ -n "$time_now" ] && time_display=" ${sep} ${c_gray}${time_now}${reset_color}"
 fi
 
-# ========== Transcript 解析（stale-while-revalidate，与余额刷新同模式）==========
-# 获取 transcript 路径
-transcript_path=""
+# 获取 session_id（Tasks 目录命名用）
+session_id=""
 case "$input" in
-    *'"transcript_path":"'*)
-        transcript_path="${input#*\"transcript_path\":\"}"
-        transcript_path="${transcript_path%%\"*}"
+    *'"session_id":"'*)
+        session_id="${input#*\"session_id\":\"}"
+        session_id="${session_id%%\"*}"
         ;;
 esac
 
-# 初始化活动行
-tools_line=""
-agents_line=""
-todos_line=""
-
-# 同步路径零等待：transcript 未变化时直接读统计缓存（read 内建，零 fork）；
-# transcript 变化或首次渲染时后台 spawn parser 刷新，本次渲染不等待。
-# 背景：Windows Git Bash 上每次 spawn node 约 70-100ms（解析本身仅 ~30ms），
-# 是状态栏启动慢的主因之一，故改为与余额一致的 stale-while-revalidate。
-# 统计缓存按 transcript 路径命名（参数扩展清洗，零 fork），多会话互不干扰。
-if [ -n "$transcript_path" ] && [ -f "$transcript_path" ] && command -v node >/dev/null 2>&1; then
-    # 定位解析器（开发布局 scripts/ 或安装布局根，由 lib/layout.sh 统一查找）
-    if parser_script=$(find_file "transcript-parser-lite.js"); then
-        TRANSCRIPT_STATS="$CACHE_DIR/transcript_stats_${transcript_path//[^a-zA-Z0-9._-]/_}.txt"
-
-        # 同步路径：transcript 未比统计缓存新 → 命中，零 fork 读统计
-        tools_running=0; agents_running=0; todos_ip=0; todos_total=0
-        if [ -f "$TRANSCRIPT_STATS" ] && [ ! "$transcript_path" -nt "$TRANSCRIPT_STATS" ]; then
-            # 统计缓存即 parser 输出的 key=value 四行，while read 内建解析（零 fork）
-            while IFS='=' read -r _k _v; do
-                case "$_k" in
-                    tools_running) tools_running="${_v}" ;;
-                    agents_running) agents_running="${_v}" ;;
-                    todos_in_progress) todos_ip="${_v}" ;;
-                    todos_total) todos_total="${_v}" ;;
-                esac
-            done < "$TRANSCRIPT_STATS"
-        else
-            # 缓存未命中/过期：后台刷新（tmp + mv 原子写，失败不污染缓存），本次渲染不阻塞
-            mkdir -p "$CACHE_DIR"
-            (
-                _tmp="${TRANSCRIPT_STATS}.tmp.$$"
-                if node "$parser_script" "$transcript_path" > "$_tmp" 2>/dev/null && [ -s "$_tmp" ]; then
-                    mv "$_tmp" "$TRANSCRIPT_STATS"
-                else
-                    rm -f "$_tmp"
-                fi
-            ) >/dev/null 2>&1 &
-        fi
-
-        # 输出活动行（用同步读到的统计；首次渲染可能为空，后台刷新完成后下轮渲染补齐）
-        [ "$show_tools" = "true" ] && [ "$tools_running" -gt 0 ] 2>/dev/null && tools_line="❦ Tools  ${tools_running} running"
-        [ "$show_agents" = "true" ] && [ "$agents_running" -gt 0 ] 2>/dev/null && agents_line="❦ Agents ${agents_running} running"
-        [ "$show_todos" = "true" ] && [ "$todos_ip" -gt 0 ] 2>/dev/null && todos_line="❦ Todos  ${todos_ip}/${todos_total}"
+# ========== Tasks 计数（TaskCreate 任务系统）==========
+# 任务持久化在 <claude 配置目录>/tasks/session-<session_id 前 8 位>/<n>.json，
+# 逐个 bash 内建读入（$(<file) 不 exec 外部命令），统计 completed/total。
+# 会话未用过 TaskCreate 时目录不存在，整段不显示。
+tasks_line=""
+if [ "$show_tasks" = "true" ] && [ -n "$session_id" ]; then
+    tasks_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/tasks/session-${session_id:0:8}"
+    if [ -d "$tasks_dir" ]; then
+        tasks_total=0; tasks_done=0
+        for _tf in "$tasks_dir"/*.json; do
+            [ -f "$_tf" ] || continue  # 无匹配时 glob 保留字面量
+            tasks_total=$((tasks_total + 1))
+            case "$(<"$_tf")" in
+                *\"status\":\ \"completed\"*|*\"status\":\"completed\"*) tasks_done=$((tasks_done + 1)) ;;
+            esac
+        done
+        [ "$tasks_total" -gt 0 ] && tasks_line="❦ Tasks  ${tasks_done}/${tasks_total}"
     fi
 fi
 
@@ -342,7 +342,7 @@ BALANCE_REFRESH_TTL=300  # 与 provider 缓存对齐，5 分钟内不重复 spaw
 if [ -f "$BALANCE_CACHE" ]; then
     balance_result=""
     read -r balance_result < "$BALANCE_CACHE" 2>/dev/null || true
-    [ -n "$balance_result" ] && balance_display="${c_gray}‹${reset_color}${balance_result}${c_gray}›${reset_color}"
+    [ -n "$balance_result" ] && balance_display="${c_gray}⟦${reset_color}${balance_result}${c_gray}⟧${reset_color}"
 fi
 
 # 后台异步刷新（节流：TTL 内不重复 spawn）。用 printf/read 内建取时间，避免 fork
@@ -369,36 +369,11 @@ if [ -n "$balance_script" ] && [ -f "$balance_script" ]; then
 fi
 
 # ========== 输出生成 ==========
-# 数字映射（panel.digit_style 控制）：
-#   segment  = 数码管 U+1FBF0-U+1FBF9（7 段显示字符，需终端字体支持，见 fonts/ 与 README）
-#   subscript= 下标数字（通用，任何终端可显示）
-segment_digits() {
-    local s="$1" out="" c
-    for ((i = 0; i < ${#s}; i++)); do
-        c="${s:i:1}"
-        case "$c" in
-            0) out="${out}🯰" ;; 1) out="${out}🯱" ;; 2) out="${out}🯲" ;; 3) out="${out}🯳" ;;
-            4) out="${out}🯴" ;; 5) out="${out}🯵" ;; 6) out="${out}🯶" ;; 7) out="${out}🯷" ;;
-            8) out="${out}🯸" ;; 9) out="${out}🯹" ;; *) out="${out}${c}" ;;
-        esac
-    done
-    printf '%s' "$out"
-}
-
-subscript_digits() {
-    local s="$1"
-    s="${s//0/₀}"; s="${s//1/₁}"; s="${s//2/₂}"; s="${s//3/₃}"; s="${s//4/₄}"
-    s="${s//5/₅}"; s="${s//6/₆}"; s="${s//7/₇}"; s="${s//8/₈}"; s="${s//9/₉}"
-    printf '%s' "$s"
-}
-
-case "$digit_style" in
-    segment) used_pct_disp="\033[1m$(segment_digits "$used_pct")" ;;  # 数码管加粗，视觉上更醒目
-    *)       used_pct_disp=$(subscript_digits "$used_pct") ;;  # 其他值/旧版本回退下标，保证可显示
-esac
+# 百分比直接显示普通数字（不依赖任何特殊字体）
+used_pct_disp="$used_pct"
 
 # 进度条显示
-progress_display="${bar_color}❦ ${progress_bar}${used_pct_disp}${reset_color}"
+progress_display="${bar_color}❦ ${progress_bar} ${used_pct_disp}${reset_color}"
 
 # 思考级别显示（‹费用›‹high› ↯；字段缺失或关闭时整段不显示）
 effort_display=""
@@ -410,11 +385,25 @@ if [ -n "$effort" ] && [ "$show_effort" = "true" ]; then
         xhigh|max)  effort_color="$c_red"     ;;  # 极高/最大思考：红
         *)          effort_color="$c_gray"    ;;
     esac
-    effort_display="${c_gray}‹${reset_color}${effort_color}${effort}${reset_color}${c_gray}›${reset_color}"
+    effort_display="${c_gray}⟦${reset_color}${effort_color}${effort}${reset_color}${c_gray}⟧${reset_color}"
 fi
 
-# 第一行: 进度条 · 余额 · 思考级别 · 路径 · 分支 · 时间
-statusline="${progress_display}${balance_display}${effort_display} ${c_gray}↯${reset_color} ${dir_display}${branch_display}${time_display}"
+# 第一行: 进度条 · 余额 · 思考级别 · 路径 · 时间（余额/思考为空时跳过对应片段与分隔符）
+statusline="${progress_display}"
+[ -n "$balance_display" ] && statusline="${statusline} ${sep} ${balance_display}"
+[ -n "$effort_display" ] && statusline="${statusline} ${effort_display}"
+statusline="${statusline} ${c_gray}↯${reset_color} ${dir_display}${time_display}"
+
+# 第二行: 分支 · PR（分支段与 PR 段可独立缺席；都没有时整行不输出）
+git_line=""
+[ -n "$branch_display" ] && git_line="$branch_display"
+if [ -n "$pr_display" ]; then
+    if [ -n "$git_line" ]; then
+        git_line="${git_line} ${sep} ${pr_display}"
+    else
+        git_line="$pr_display"
+    fi
+fi
 
 # 活动行前缀
 activity_prefix="  "
@@ -422,9 +411,8 @@ activity_prefix="  "
 # 输出主状态行
 echo -e "${statusline}"
 
-# 输出活动行（如果有）
-[ -n "$tools_line" ] && echo -e "${activity_prefix}${c_yellow}${tools_line}${reset_color}"
-[ -n "$agents_line" ] && echo -e "${activity_prefix}${c_cyan}${agents_line}${reset_color}"
-[ -n "$todos_line" ] && echo -e "${activity_prefix}${c_green}${todos_line}${reset_color}"
+# 输出第二行（分支/PR）与第三行（Tasks）
+[ -n "$git_line" ] && echo -e "${activity_prefix}${git_line}"
+[ -n "$tasks_line" ] && echo -e "${activity_prefix}${c_purple}${tasks_line}${reset_color}"
 
 exit 0

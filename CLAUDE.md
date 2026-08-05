@@ -54,7 +54,6 @@ echo '{"cwd":"/home/user/test","display_name":"Claude Sonnet 4.6","used_percenta
 │   ├── config.json        # 配置文件：颜色阈值、显示选项、balance provider 列表
 │   └── providers/         # 余额查询 provider 适配器（每 provider 一个脚本）
 ├── scripts/
-│   ├── transcript-parser-lite.js  # transcript 解析器
 │   └── refresh-*-cookie.*         # Cookie 自动刷新（Playwright 复用系统 Chrome）
 ├── docs/
 │   ├── CLAUDE.md          # 项目记忆文档
@@ -75,9 +74,12 @@ echo '{"cwd":"/home/user/test","display_name":"Claude Sonnet 4.6","used_percenta
 }
 ```
 
-输出格式：
+输出格式（最多三行，后两行无内容时省略）：
+
 ```
-用户名 | 当前目录 | 模型名 | 进度条颜色+百分比 | Git分支状态 | 时间
+第一行: 进度条+百分比 · 余额 · 思考级别 · 当前目录 · 时间
+第二行: Git分支状态 · PR徽章
+第三行: Tasks 进度
 ```
 
 ### 配置系统
@@ -93,11 +95,9 @@ echo '{"cwd":"/home/user/test","display_name":"Claude Sonnet 4.6","used_percenta
 - `panel.git.show_git`: 是否显示 Git 状态（默认 true）
 - `panel.git.show_git_changes`: 是否显示文件变动统计（默认 true）
 - `panel.show_time`: 是否显示时间（默认 true）
-- `panel.show_tools`: 是否显示工具活动（默认 true）
-- `panel.show_agents`: 是否显示代理状态（默认 true）
-- `panel.show_todos`: 是否显示待办进度（默认 true）
+- `panel.show_tasks`: 是否显示 TaskCreate 任务进度（默认 true，读 `~/.claude/tasks/session-<id前8位>/`，会话无任务时自动隐藏）
+- `panel.show_pr`: 是否显示当前分支开放 PR 徽章（默认 true，从输入 JSON 的 `pr.number`/`pr.review_state` 读取，带 OSC 8 可点击链接，无 PR 时自动隐藏）
 - `panel.show_effort`: 是否显示思考级别（默认 true，从输入 JSON 的 `effort.level` 读取，模型不支持时自动隐藏）
-- `panel.digit_style`: 百分比数字样式（默认 `segment` 数码管 / `subscript` 下标）。数码管用 Unicode U+1FBF0-U+1FBF9 7 段字符，需终端字体支持（项目自带 fonts/CascadiaCodeNF.ttf，`bash bin/install.sh -f` 安装，安装后终端字体需切到 Cascadia Code NF）；字体不支持时终端会显示方块，改 `subscript` 回退
 
 配置解析优先用一次 `node` 调用批量提取所有字段（约 60ms，避免反复 fork 子进程）；`node` 不可用时 fallback 到 `parse_config`（grep/sed 管道，在 Windows Git Bash 上约 1 秒/次）。支持嵌套路径如 `colors.thresholds.green`。
 
@@ -110,10 +110,13 @@ echo '{"cwd":"/home/user/test","display_name":"Claude Sonnet 4.6","used_percenta
    {
      "statusLine": {
        "command": "bash ~/.claude/statusline/statusline.sh",
-       "type": "command"
+       "type": "command",
+       "refreshInterval": 60
      }
    }
    ```
+
+`refreshInterval`（秒）让 Claude Code 在事件触发之外定时重跑脚本——空闲时（无新消息）状态栏默认不刷新，时间/余额等外部数据会冻结；脚本本身有 mtime 配置缓存与余额 TTL 节流，定时重跑成本接近零。
 
 ## 颜色逻辑
 
@@ -186,4 +189,4 @@ green_threshold=$(json_get "$CONFIG_FILE" "colors.thresholds.green" "55")
 
 config.json 采用分组结构：
 - `colors` - 颜色相关（thresholds, branch）
-- `panel` - 显示选项（git 子组, show_time, show_tools 等）
+- `panel` - 显示选项（git 子组, show_time, show_tasks 等）

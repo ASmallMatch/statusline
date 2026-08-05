@@ -11,14 +11,15 @@ A cross-platform statusline script for Claude Code, featuring dynamic color prog
 
 - **Progress bar first**: Battery-style progress bar displayed at the beginning of the first line
 - **Two-level directory display**: Shows paths in `parent/current` format
-- **Battery-style progress bar**: `•` positive pole + `■` full block + `□` empty block + subscript percentage
+- **Battery-style progress bar**: `▣` positive pole + `🀫` full block + `🀆` empty block + percentage number
 - **Dynamic colors**: Changes color based on Context usage
   - 🟢 Green (< 55%)
   - 🟡 Yellow (55% ~ 75%)
   - 🔴 Red (> 75%)
 - **LLM balance/usage query**: Configurable multi-provider mode supporting DeepSeek, Kimi, Xiaomi MiMo, SCNet (API/TokenPlan dual-mode auto-routing), Volcengine Ark (Coding/Agent Plan dual-mode auto-routing), and more
 - **Smart switching**: Configure multiple providers, automatically display the first one with a valid token
-- **Real-time activity display**: Shows running Tools, Agents, and Todos count
+- **Task progress display**: Shows TaskCreate task completion (completed/total)
+- **PR badge**: Open PR number and review state for current branch (clickable in supported terminals)
 - **Git status integration**: Displays branch name and file change statistics
 - **Cross-platform**: Windows (Git Bash/WSL), macOS, Linux
 
@@ -96,7 +97,6 @@ cp bin/statusline.sh ~/.claude/statusline/
 cp bin/query-balance.sh ~/.claude/statusline/
 cp config/config.json ~/.claude/statusline/
 cp config/providers/*.sh ~/.claude/statusline/providers/
-cp scripts/transcript-parser-lite.js ~/.claude/statusline/
 mkdir -p ~/.claude/statusline/scripts
 cp scripts/refresh-xiaomimimo-cookie.js ~/.claude/statusline/scripts/
 cp scripts/refresh-xiaomimimo-cookie.sh ~/.claude/statusline/scripts/
@@ -162,9 +162,8 @@ Edit `~/.claude/statusline/config.json`:
       "show_git_changes": true
     },
     "show_time": true,
-    "show_tools": true,
-    "show_agents": true,
-    "show_todos": true
+    "show_tasks": true,
+    "show_pr": true
   }
 }
 ```
@@ -209,55 +208,54 @@ The system automatically reads `ANTHROPIC_BASE_URL`, extracts the provider ident
 | `panel.git.show_git` | Show Git status | true |
 | `panel.git.show_git_changes` | Show file change statistics | true |
 | `panel.show_time` | Show time | true |
-| `panel.show_tools` | Show tool activities | true |
-| `panel.show_agents` | Show agent status | true |
-| `panel.show_todos` | Show todo progress | true |
-| `panel.digit_style` | Percentage digit style: `segment` (7-segment display) or `subscript` | `segment` |
+| `panel.show_tasks` | Show TaskCreate task progress (completed/total) | true |
+| `panel.show_pr` | Show open PR number and review state for current branch (clickable in supported terminals) | true |
 
 | `bar_length` | Progress bar length | 10 |
 
 ## Display Preview
 
 ```
-# Main status line (DeepSeek)
-❦ •■■■■■□□□□₅₆‹¥98.66› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
+# Line 1: Main status line (Kimi example)
+❦ ▣🀫🀫🀫🀫🀆🀆🀆🀆🀆 56 ▸ ⟦Kimi 69%/10%⟧ ↯ claude-space/statusline ▸ 05:42
 
-# Main status line (Kimi)
-❦ •■■■■■□□□□₅₆‹Kimi 69%/10%› ↯ claude-space/statusline ▸  test ~2 -1 ▸ 05:42
+# Line 2: Git branch and PR badge (shown when either exists)
+    test ~2 -1 ▸ #7 ✓
 
-# Activity lines (shown only when activities are running)
-  ❦ Tools  3 running
-  ❦ Agents 2 running
-  ❦ Todos  2/5
+# Line 3: Tasks progress (shown when TaskCreate is used)
+  ❦ Tasks  2/5
 ```
 
 Format description:
 
 - `❦` - Progress bar prefix symbol
-- `•` - Battery positive pole (always shown)
-- `■■■■■` - Used Context (green/yellow/red)
-- `□□□□` - Unused Context
-- `₅₆` - Usage percentage (subscript digits)
-- `‹¥98.66›` - DeepSeek balance (colored inside brackets)
-- `‹Kimi 69%/10%›` - Kimi Coding Plan usage (5h rate / weekly quota, each colored independently)
-- `‹方舟Coding 21%/3%›` - Volcengine Ark Coding Plan usage (5h / weekly rate, each colored independently); Agent Plan shows as `方舟Agent`
+- `▣` - Battery positive pole (always shown)
+- `█████` - Used Context (green/yellow/red)
+- `░░░░░` - Unused Context
+- `56` - Usage percentage
+- `⟦¥98.66⟧` - DeepSeek balance (colored inside brackets)
+- `⟦Kimi 69%/10%⟧` - Kimi Coding Plan usage (5h rate / weekly quota, each colored independently)
+- `⟦方舟Coding 21%/3%⟧` - Volcengine Ark Coding Plan usage (5h / weekly rate, each colored independently); Agent Plan shows as `方舟Agent`
 - `↯` - Separator between balance and path
-- `▸` - Separator between path, branch, and time
+- `▸` - Separator between percentage and balance, path and time (line 1), and between branch and PR (line 2)
 - `claude-space/statusline` - Two-level directory name (cyan)
 - ` test` - Git branch (orange)
 - `~2 -1` - File change statistics (2 modified, 1 deleted)
 - `05:42` - Time (gray)
 
-**Activity lines** (only shown when there are running activities):
-- `❦ Tools  3 running` - 3 tools currently executing (yellow)
-- `❦ Agents 2 running` - 2 agents currently working (cyan)
-- `❦ Todos  2/5` - 2 todos in progress, 5 total (green)
+**Line 2** (shown when a Git branch or PR exists, indented two spaces):
+- `  test` - Git branch (orange)
+- `~2 -1` - File change statistics (2 modified, 1 deleted)
+- `#7 ✓` - PR badge: `✓` approved (green) / `✗` changes requested (red) / `…` pending (yellow) / `✎` draft (gray); clickable in supported terminals
+
+**Line 3** (shown when TaskCreate tasks exist, indented two spaces, purple):
+- `❦ Tasks  2/5` - 2 of 5 tasks completed
 
 ## Performance
 
-- **Transcript activity lines (stale-while-revalidate)**: Tools/Agents/Todos stats are read from a cache synchronously and refreshed in the background; the first render no longer waits for node parsing (~70-100ms per node spawn on Windows)
+- **Zero-fork task counting**: task files are read one by one with bash builtins (`$(<file)`), no external command forks
 - **Zero-fork layout self-location**: in the installed layout, `lib/layout.sh` resolves itself without subshells, saving ~45ms per render
-- **Background refresh never blocks rendering**: transcript and balance refresh subshells redirect stdout/stderr so callers do not wait on pipe EOF
+- **Background refresh never blocks rendering**: the balance refresh subshell redirects stdout/stderr so callers do not wait on pipe EOF
 
 ## File Structure
 
@@ -284,8 +282,7 @@ Format description:
 │   ├── volces_cookie.txt              # Volcengine Ark auth cookie
 │   ├── balance_volces_coding.txt      # Volcengine Ark Coding Plan usage cache
 │   ├── balance_volces_agent.txt       # Volcengine Ark Agent Plan usage cache
-│   └── balance_*.txt                  # Other provider balance cache
-└── transcript-parser-lite.js # Transcript parser
+    └── balance_*.txt                  # Other provider balance cache
 ```
 
 | File | Description |
@@ -295,7 +292,6 @@ Format description:
 | `query-balance.sh` | Balance dispatcher: reads config and calls provider (supports jq multi-provider parsing) |
 | `providers/` | Provider scripts directory, each `.sh` encapsulates a vendor's query logic and manages its own colors/format |
 | `scripts/` | Helper scripts, including MiMo cookie auto-refresh tools |
-| `transcript-parser-lite.js` | Transcript parser: extracts Tools/Agents/Todos status |
 | `install.sh` | Install script: deploys to `~/.claude/statusline/` |
 
 ## Provider Documentation
