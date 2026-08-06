@@ -21,5 +21,5 @@ stale-while-revalidate 机制：同步路径直接 `read` 统一缓存文件（`
 _Avoid_: 余额缓存
 
 **Cookie 刷新**：
-`scripts/refresh-*-cookie.sh/.js` 通过 Playwright（channel: chrome，复用系统 Chrome）维护 provider 登录态，写入 `cache/` 目录；`check-volces-cookie.sh` 在 SessionStart hook 中检查过期并触发刷新。Cookie 契约细节见 docs/README.md。
+`scripts/refresh-*-cookie.sh/.js` 通过 Playwright（channel: chrome，复用系统 Chrome）维护 provider 登录态，写入 `cache/` 目录。Cookie 契约细节见 docs/README.md。
 _Avoid_: 登录、认证维护

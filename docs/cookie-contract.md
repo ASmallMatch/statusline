@@ -11,8 +11,7 @@ Provider 的余额/用量查询中，Cookie 认证型 provider（scnet、scnet-t
 │  scnet_cookie.txt        ← 手动/脚本写入，scnet.sh 读取      │
 │  scnet_tp_cookie.txt     ← 手动/脚本写入，scnet-tp.sh 读取   │
 │  volces_cookie.txt       ← refresh-volces-cookie.sh 写入     │
-│  │                          volces.sh 读取                  │
-│  │                          check-volces-cookie.sh 检查过期  │
+│                             volces.sh 读取                  │
 │  xiaomimimo_cookie.txt   ← refresh-xiaomimimo-cookie.sh 写入│
 │                             xiaomimimo.sh 读取              │
 └─────────────────────────────────────────────────────────────┘
@@ -27,23 +26,13 @@ Provider 的余额/用量查询中，Cookie 认证型 provider（scnet、scnet-t
 
 | 脚本 | 写入文件 | 触发方式 | 依赖 |
 |---|---|---|---|
-| `scripts/refresh-volces-cookie.sh` | `volces_cookie.txt` | 手动 / `check-volces-cookie.sh` / SessionStart hook | Playwright（channel: chrome，复用系统 Chrome，不下载 chromium） |
+| `scripts/refresh-volces-cookie.sh` | `volces_cookie.txt` | 手动 | Playwright（channel: chrome，复用系统 Chrome，不下载 chromium） |
 | `scripts/refresh-xiaomimimo-cookie.sh` | `xiaomimimo_cookie.txt` | 手动 | Playwright（同上） |
 
-- 两个刷新脚本均支持 `--quiet` 静默模式（无输出，供 hook/后台调用）。
+- 两个刷新脚本均支持 `--quiet` 静默模式（无输出，供后台调用）。
 - 核心逻辑在 `refresh-*.js`（Node.js + Playwright），`.sh` 是入口封装。
 - Playwright 依赖在安装时由 `install.sh` 的 `install_cookie_refresh_deps` 安装
   （`cd $install_dir/scripts && npm install playwright`）。
-
-### 检查方（过期检测）
-
-`scripts/check-volces-cookie.sh`：
-
-- 检查 `volces_cookie.txt` 是否存在、是否过期（Cookie 中 `userInfo` 相关字段）。
-- 过期时调用 `refresh-volces-cookie.sh --quiet` 自动刷新。
-- 由 `install.sh` 配置为 `settings.json` 的 SessionStart hook
-  （`matcher: "startup"`，`async: true`），每次 Claude Code 会话启动时触发。
-- 无 Python3 环境时 install.sh 打印手动配置示例。
 
 ### 消费方（Provider）
 
@@ -63,7 +52,7 @@ scnet / scnet-tp / volces 均支持手动方式：浏览器登录 → F12 复制
 
 - **新增 Cookie 认证型 provider**：遵循 `cache/<provider>_cookie.txt` 命名约定，
   在 provider 脚本头部注释写明 Cookie 来源与获取方式。
-- **路径变更**：需同步修改消费 provider、刷新脚本、检查脚本三处（当前分散定义，
+- **路径变更**：需同步修改消费 provider、刷新脚本两处（当前分散定义，
   本契约文档是唯一交叉参考）。
 - 若需要随 `CLAUDE_STATUSLINE_DIR` 自定义安装目录，Cookie 路径需统一改为
   从布局模块（`lib/layout.sh` 的 `CACHE_DIR`）推导。
