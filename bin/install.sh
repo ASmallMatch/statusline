@@ -173,12 +173,6 @@ copy_files() {
         chmod +x "$install_dir/scripts/refresh-volces-cookie.sh"
     fi
 
-    # 复制火山方舟 cookie 过期检查脚本
-    if [ -f "$PROJECT_ROOT/scripts/check-volces-cookie.sh" ]; then
-        cp "$PROJECT_ROOT/scripts/check-volces-cookie.sh" "$install_dir/scripts/"
-        chmod +x "$install_dir/scripts/check-volces-cookie.sh"
-    fi
-
     print_success "文件复制完成"
 }
 
@@ -298,97 +292,6 @@ PYEOF
 }
 EOF
         print_success "创建新配置文件: $settings_file"
-    fi
-
-    # 配置火山方舟 Cookie 自动检查 hook
-    configure_volces_hook "$install_dir" "$settings_file"
-}
-
-# 配置火山方舟 Cookie 自动检查 hook
-configure_volces_hook() {
-    local install_dir="$1"
-    local settings_file="$2"
-    local check_script="$install_dir/scripts/check-volces-cookie.sh"
-
-    # 检查脚本和刷新脚本都存在时才配置
-    if [ ! -f "$check_script" ] || [ ! -f "$install_dir/scripts/refresh-volces-cookie.sh" ]; then
-        return 0
-    fi
-
-    print_info "配置火山方舟 Cookie 自动检查 hook..."
-
-    # 默认安装目录用 ~ 写进 settings.json（跨用户/跨平台），自定义目录用完整路径
-    if [ "$install_dir" = "$HOME/.claude/statusline" ]; then
-        check_cmd="bash ~/.claude/statusline/scripts/check-volces-cookie.sh >/dev/null 2>&1"
-    else
-        check_cmd="bash $install_dir/scripts/check-volces-cookie.sh >/dev/null 2>&1"
-    fi
-
-    if command -v python3 &> /dev/null; then
-        python3 << PYEOF
-import json
-import os
-import shutil
-from datetime import datetime
-
-settings_file = os.path.expanduser("~/.claude/settings.json")
-check_cmd = "$check_cmd"
-
-try:
-    with open(settings_file, 'r', encoding='utf-8') as f:
-        config = json.load(f)
-except Exception as e:
-    print(f"读取配置失败: {e}")
-    config = {}
-
-# 备份一次 settings.json（如果不存在当天的备份）
-backup_file = f"{settings_file}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-shutil.copy2(settings_file, backup_file)
-
-if 'hooks' not in config:
-    config['hooks'] = {}
-
-if 'SessionStart' not in config['hooks']:
-    config['hooks']['SessionStart'] = []
-
-# 移除旧的 check-volces-cookie hook（任意路径格式），统一用新 check_cmd
-for entry in config['hooks']['SessionStart']:
-    if 'hooks' in entry:
-        entry['hooks'] = [h for h in entry['hooks'] if 'check-volces-cookie.sh' not in h.get('command', '')]
-config['hooks']['SessionStart'] = [e for e in config['hooks']['SessionStart'] if e.get('hooks')]
-# 添加新 hook
-config['hooks']['SessionStart'].append({
-    "matcher": "startup",
-    "hooks": [
-        {
-            "type": "command",
-            "command": check_cmd,
-            "async": True
-        }
-    ]
-})
-with open(settings_file, 'w', encoding='utf-8') as f:
-    json.dump(config, f, indent=2, ensure_ascii=False)
-print("已配置 SessionStart hook: 自动检查火山方舟 Cookie")
-PYEOF
-        print_success "火山方舟 Cookie 自动检查 hook 配置完成"
-    else
-        print_warning "未检测到 Python3，无法自动配置 SessionStart hook"
-        cat << 'EOF'
-请手动在 ~/.claude/settings.json 的 hooks.SessionStart 中添加:
-
-{
-  "matcher": "startup",
-  "hooks": [
-    {
-      "type": "command",
-      "command": "bash ~/.claude/statusline/scripts/check-volces-cookie.sh >/dev/null 2>&1",
-      "async": true
-    }
-  ]
-}
-
-EOF
     fi
 }
 
