@@ -275,8 +275,7 @@ Format description:
 │   ├── refresh-xiaomimimo-cookie.js   # MiMo cookie auto-refresh (Playwright)
 │   ├── refresh-xiaomimimo-cookie.sh   # MiMo cookie refresh entry script
 │   ├── refresh-volces-cookie.js       # Volcengine Ark cookie auto-refresh (Playwright)
-│   ├── refresh-volces-cookie.sh       # Volcengine Ark cookie refresh entry script
-│   └── check-volces-cookie.sh         # Volcengine Ark cookie expiration check (SessionStart hook)
+│   └── refresh-volces-cookie.sh       # Volcengine Ark cookie refresh entry script
 ├── cache/                   # Runtime cache (auto-generated)
 │   ├── xiaomimimo_cookie.txt          # MiMo auth cookie
 │   ├── volces_cookie.txt              # Volcengine Ark auth cookie
