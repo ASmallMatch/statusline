@@ -5,6 +5,7 @@
 
 跨平台的 Claude Code 状态栏脚本，支持动态颜色进度条、Git 状态集成和实时活动显示。
 
+[![在线介绍页](https://img.shields.io/badge/在线介绍页-GitHub%20Pages-blue?style=flat&logo=githubpages&logoColor=white)](https://ember-hearted.github.io/statusline/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 功能特性

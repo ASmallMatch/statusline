@@ -5,6 +5,7 @@
 
 A cross-platform statusline script for Claude Code, featuring dynamic color progress bars, Git status integration, and real-time activity display.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-blue?style=flat&logo=githubpages&logoColor=white)](https://ember-hearted.github.io/statusline/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
