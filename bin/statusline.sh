@@ -205,7 +205,9 @@ c_dim="\033[2m"             # 暗淡
 c_yellow="\033[33m"         # 黄色
 c_green="\033[32m"         # 绿色
 c_red="\033[31m"           # 红色
-reset_color="\033[0m"
+# reset 用 ANSI-C quoting 存真实 ESC：避免与 OSC 8 结束符（ESC\）拼接时被
+# echo -e 二次转义（\\ 组合吃掉反斜杠，泄漏字面 033[0m）
+reset_color=$'\033[0m'
 
 # 显示两级目录名（如：parent/current）
 get_two_level_path() {
