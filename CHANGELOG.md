@@ -7,8 +7,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- **docs**: 新增 GitHub Pages 落地页（`docs/index.html`，单文件静态页零构建零依赖，深色苹果风 + 玻璃拟态，中英切换 + 交互式模拟终端），README 顶部新增在线介绍页徽章
+
 ### Changed
 
+- **statusline**: 行布局调整——第一行聚合进度条/余额/思考级别/分支/PR，路径与时间移至第二行（`↯` 指示符），第三行 Tasks 不变
 - **statusline**: transcript 活动行改为 stale-while-revalidate（同步读统计缓存 + 后台刷新），首次渲染不再等待 node 解析（Windows 每次 spawn node 约 70-100ms），首屏延迟明显下降
 - **layout**: lib/layout.sh 自定位改为安装布局下零 fork（去掉 cd/basename 子 shell），每次状态栏渲染省 ~45ms
 
