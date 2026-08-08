@@ -294,7 +294,7 @@ time_display=""
 if [ "$show_time" = "true" ]; then
     time_now=$(printf '%(%H:%M)T' -1 2>/dev/null || date +%H:%M 2>/dev/null || echo "")
     case "$time_now" in ""|*T*|*'%'*) time_now=$(date +%H:%M 2>/dev/null || echo "") ;; esac
-    [ -n "$time_now" ] && time_display=" ${sep} ${c_gray}${time_now}${reset_color}"
+    [ -n "$time_now" ] && time_display="${sep} ${c_gray}${time_now}${reset_color}"
 fi
 
 # 获取 session_id（Tasks 目录命名用）
@@ -399,12 +399,11 @@ if [ -n "$pr_display" ]; then
     fi
 fi
 
-# 第一行: 进度条 · 余额 · 思考级别 · 分支/PR · 时间（余额/思考/分支为空时跳过对应片段与分隔符）
+# 第一行: 进度条 · 余额 · 思考级别 · 分支/PR（余额/思考/分支为空时跳过对应片段与分隔符）
 statusline="${progress_display}"
 [ -n "$balance_display" ] && statusline="${statusline} ${sep} ${balance_display}"
 [ -n "$effort_display" ] && statusline="${statusline} ${effort_display}"
 [ -n "$git_line" ] && statusline="${statusline} ${sep} ${git_line}"
-statusline="${statusline}${time_display}"
 
 # 活动行前缀
 activity_prefix="  "
@@ -412,8 +411,11 @@ activity_prefix="  "
 # 输出主状态行
 echo -e "${statusline}"
 
-# 输出第二行（路径）与第三行（Tasks）
-[ -n "$dir_display" ] && echo -e "${activity_prefix}${c_gray}↯${reset_color} ${dir_display}"
+# 输出第二行（时间/路径）与第三行（Tasks）
+line2="${activity_prefix}"
+[ -n "$time_display" ] && line2="${line2}${time_display} "
+line2="${line2}${c_gray}↯${reset_color} ${dir_display}"
+echo -e "${line2}"
 [ -n "$tasks_line" ] && echo -e "${activity_prefix}${c_purple}${tasks_line}${reset_color}"
 
 exit 0
