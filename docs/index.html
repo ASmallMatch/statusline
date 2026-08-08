@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Statusline — 电池风格的终端状态栏</title>
+<meta name="description" content="跨平台的 Claude Code 状态栏脚本:电池风格进度条、动态三色、多 Provider 余额查询、Git 状态集成。A battery-style statusline for Claude Code.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>▣</text></svg>">
+<style>
+  :root {
+    --bg: #050505;
+    --bg-glow-1: rgba(48, 209, 88, .07);
+    --bg-glow-2: rgba(100, 210, 255, .06);
+    --surface: rgba(255, 255, 255, .04);
+    --surface-hover: rgba(255, 255, 255, .07);
+    --border: rgba(255, 255, 255, .09);
+    --border-hi: rgba(255, 255, 255, .16);
+    --text: #f5f5f7;
+    --text-2: #a1a1a6;
+    --text-3: #6e6e73;
+    --green: #30d158;
+    --yellow: #ffd60a;
+    --red: #ff453a;
+    --cyan: #64d2ff;
+    --orange: #ff9f0a;
+    --purple: #bf5af2;
+    --gray: #98989d;
+    --nav-bg: rgba(5, 5, 5, .55);
+    --nav-bg-scrolled: rgba(5, 5, 5, .78);
+    --terminal-bg: #0d0d0f;
+    --radius: 18px;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", "Segoe UI", sans-serif;
+    --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols2", monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f5f7;
+      --bg-glow-1: rgba(48, 209, 88, .10);
+      --bg-glow-2: rgba(100, 210, 255, .12);
+      --surface: rgba(255, 255, 255, .65);
+      --surface-hover: rgba(255, 255, 255, .9);
+      --border: rgba(0, 0, 0, .08);
+      --border-hi: rgba(0, 0, 0, .14);
+      --text: #1d1d1f;
+      --text-2: #6e6e73;
+      --text-3: #aeaeb2;
+      --nav-bg: rgba(245, 245, 247, .55);
+      --nav-bg-scrolled: rgba(245, 245, 247, .8);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  ::selection { background: rgba(48, 209, 88, .3); }
+
+  /* 背景氛围光 */
+  .glow {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(600px 400px at 20% -5%, var(--bg-glow-1), transparent 70%),
+      radial-gradient(700px 500px at 85% 10%, var(--bg-glow-2), transparent 70%);
+  }
+
+  /* ---------- 导航 ---------- */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: var(--nav-bg);
+    border-bottom: 1px solid transparent;
+    transition: background .35s ease, border-color .35s ease;
+  }
+  nav.scrolled {
+    background: var(--nav-bg-scrolled);
+    border-bottom-color: var(--border);
+  }
+  .nav-inner {
+    max-width: 1080px; margin: 0 auto; padding: 0 24px;
+    height: 56px; display: flex; align-items: center; gap: 28px;
+  }
+  .nav-logo {
+    font-weight: 600; font-size: 15px; letter-spacing: -.01em;
+    color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 8px;
+  }
+  .nav-logo .mark { color: var(--green); }
+  .nav-links { display: flex; gap: 24px; margin-left: auto; align-items: center; }
+  .nav-links a {
+    color: var(--text-2); text-decoration: none; font-size: 13px;
+    transition: color .2s;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .lang-toggle {
+    font-family: var(--font); font-size: 12px; font-weight: 500;
+    color: var(--text-2); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 980px;
+    padding: 4px 12px; cursor: pointer; transition: all .2s;
+  }
+  .lang-toggle:hover { color: var(--text); border-color: var(--border-hi); }
+  .gh-link { display: flex; align-items: center; }
+  .gh-link svg { width: 20px; height: 20px; fill: var(--text-2); transition: fill .2s; }
+  .gh-link:hover svg { fill: var(--text); }
+
+  /* ---------- 布局通用 ---------- */
+  main { position: relative; z-index: 1; }
+  section { max-width: 1080px; margin: 0 auto; padding: 96px 24px; }
+  .section-label {
+    font-size: 13px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; margin-bottom: 12px;
+    background: linear-gradient(90deg, var(--green), var(--cyan));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .section-title {
+    font-size: clamp(28px, 4.5vw, 44px); font-weight: 700;
+    letter-spacing: -.02em; line-height: 1.15; margin-bottom: 16px;
+  }
+  .section-sub { color: var(--text-2); font-size: 17px; max-width: 640px; }
+
+  /* 入场动效 */
+  .reveal {
+    opacity: 0; transform: translateY(24px);
+    transition: opacity .7s cubic-bezier(.16, 1, .3, 1), transform .7s cubic-bezier(.16, 1, .3, 1);
+  }
+  .reveal.visible { opacity: 1; transform: none; }
+
+  /* ---------- Hero ---------- */
+  .hero { padding-top: 160px; text-align: center; }
+  .hero h1 {
+    font-size: clamp(40px, 7vw, 72px); font-weight: 700;
+    letter-spacing: -.03em; line-height: 1.05; margin-bottom: 20px;
+  }
+  .hero h1 .grad {
+    background: linear-gradient(90deg, var(--green) 0%, var(--cyan) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero .tagline {
+    font-size: clamp(17px, 2.2vw, 21px); color: var(--text-2);
+    max-width: 620px; margin: 0 auto 36px;
+  }
+  .hero-cta {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 13.5px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 10px 10px 18px;
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    margin-bottom: 56px; max-width: 100%;
+  }
+  .hero-cta code {
+    color: var(--cyan); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .copy-btn {
+    font-family: var(--font); font-size: 12px; font-weight: 600;
+    color: #050505; background: var(--green);
+    border: none; border-radius: 8px; padding: 7px 14px;
+    cursor: pointer; transition: filter .2s, transform .15s;
+    white-space: nowrap;
+  }
+  .copy-btn:hover { filter: brightness(1.1); }
+  .copy-btn:active { transform: scale(.96); }
+  .copy-btn.copied { background: var(--cyan); }
+
+  /* ---------- 模拟终端 ---------- */
+  .terminal {
+    max-width: 760px; margin: 0 auto; text-align: left;
+    background: var(--terminal-bg);
+    border: 1px solid var(--border-hi);
+    border-radius: var(--radius);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .08);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    overflow: hidden;
+  }
+  .terminal-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; } .dot.y { background: #febc2e; } .dot.g { background: #28c840; }
+  .terminal-title {
+    margin-left: 8px; font-size: 12px; color: var(--text-3);
+    font-family: var(--mono);
+  }
+  .terminal-body {
+    padding: 22px 24px 26px;
+    font-family: var(--mono); font-size: 14.5px; line-height: 2.1;
+    white-space: pre; overflow-x: auto;
+    color: #c8c8cc;
+  }
+  .t-green { color: var(--green); } .t-yellow { color: var(--yellow); }
+  .t-red { color: var(--red); } .t-cyan { color: var(--cyan); }
+  .t-orange { color: var(--orange); } .t-purple { color: var(--purple); }
+  .t-gray { color: var(--gray); } .t-dim { color: #636366; }
+
+  .terminal-controls {
+    display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: center;
+    padding: 16px 24px 20px; border-top: 1px solid var(--border);
+  }
+  .ctrl { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 240px; }
+  .ctrl label {
+    font-size: 12px; font-weight: 600; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: .08em; white-space: nowrap;
+  }
+  .ctrl output { font-family: var(--mono); font-size: 13px; color: var(--text-2); min-width: 40px; }
+  input[type="range"] {
+    flex: 1; appearance: none; -webkit-appearance: none;
+    height: 4px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--green), var(--yellow) 65%, var(--red));
+    outline: none; cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none; -webkit-appearance: none;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+  }
+  select {
+    font-family: var(--font); font-size: 13px;
+    color: var(--text); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 10px; cursor: pointer; outline: none;
+  }
+
+  /* ---------- 特性网格 ---------- */
+  .features-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 24px;
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: inset 0 1px 0 var(--border);
+    transition: background .25s, border-color .25s, transform .25s;
+  }
+  .card:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-hi);
+    transform: translateY(-3px);
+  }
+  .card .icon {
+    font-family: var(--mono); font-size: 22px; margin-bottom: 14px;
+    display: inline-block;
+  }
+  .card h3 { font-size: 17px; font-weight: 600; letter-spacing: -.01em; margin-bottom: 6px; }
+  .card p { font-size: 14px; color: var(--text-2); line-height: 1.55; }
+  .card .demo-line {
+    font-family: var(--mono); font-size: 12.5px; margin-top: 12px;
+    color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* ---------- Provider ---------- */
+  .providers-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px;
+  }
+  .provider-badge {
+    display: inline-block; margin-top: 14px;
+    font-family: var(--mono); font-size: 12.5px;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px;
+    color: var(--text-2);
+  }
+  @media (prefers-color-scheme: light) {
+    .provider-badge { background: rgba(0, 0, 0, .04); }
+    .terminal { box-shadow: 0 24px 80px rgba(0, 0, 0, .18), inset 0 1px 0 rgba(255, 255, 255, .08); }
+  }
+
+  /* ---------- 安装步骤 ---------- */
+  .install-steps { margin-top: 48px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+  .step {
+    display: flex; gap: 20px; align-items: flex-start;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px;
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  }
+  .step-num {
+    flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: #050505;
+    background: linear-gradient(135deg, var(--green), var(--cyan));
+  }
+  .step-body { flex: 1; min-width: 0; }
+  .step-body h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .step-body p { font-size: 14px; color: var(--text-2); margin-bottom: 10px; }
+  .cmd-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--terminal-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 10px 10px 14px;
+  }
+  .cmd-row code {
+    flex: 1; font-family: var(--mono); font-size: 13px; color: var(--cyan);
+    white-space: normal; word-break: break-all; line-height: 1.5;
+  }
+
+  /* 模拟终端横向滚动条:常驻暗色细条 */
+  .terminal-body {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, .18) transparent;
+  }
+  .terminal-body::-webkit-scrollbar { height: 4px; }
+  .terminal-body::-webkit-scrollbar-track { background: transparent; }
+  .terminal-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, .18); border-radius: 2px;
+  }
+
+  /* ---------- Footer ---------- */
+  footer {
+    position: relative; z-index: 1;
+    border-top: 1px solid var(--border);
+    padding: 40px 24px; text-align: center;
+    color: var(--text-3); font-size: 13px;
+  }
+  footer a { color: var(--text-2); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+  footer .sep { margin: 0 10px; }
+
+  /* ---------- 响应式 ---------- */
+  @media (max-width: 860px) {
+    .features-grid, .providers-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    section { padding: 64px 20px; }
+    .hero { padding-top: 120px; }
+    .features-grid, .providers-grid { grid-template-columns: 1fr; }
+    .nav-links a:not(.gh-link) { display: none; }
+    .terminal-body { font-size: 12.5px; padding: 18px 16px 20px; }
+    .step { flex-direction: column; gap: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .card, .copy-btn, nav { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+
+<nav id="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="#top"><span class="mark">❦</span> statusline</a>
+    <div class="nav-links">
+      <a href="#demo" data-i18n="nav.demo">演示</a>
+      <a href="#features" data-i18n="nav.features">特性</a>
+      <a href="#providers" data-i18n="nav.providers"> Providers</a>
+      <a href="#install" data-i18n="nav.install">安装</a>
+      <button class="lang-toggle" id="langToggle">EN</button>
+      <a class="gh-link" href="https://github.com/ember-hearted/statusline" target="_blank" rel="noopener" aria-label="GitHub">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+  <!-- Hero -->
+  <section class="hero">
+    <h1><span data-i18n="hero.title1">终端状态栏,</span><br><span class="grad" data-i18n="hero.title2">一目了然。</span></h1>
+    <p class="tagline" data-i18n="hero.tagline">电池风格的 Claude Code 状态栏:Context 用量、LLM 余额、Git 状态、任务进度 —— 尽在指尖。</p>
+    <div class="hero-cta">
+      <code id="heroCmd">curl -fsSL https://raw.githubusercontent.com/ember-hearted/statusline/master/bin/install.sh | bash</code>
+      <button class="copy-btn" data-copy="heroCmd" data-i18n="copy">复制</button>
+    </div>
+
+    <!-- 可交互模拟终端 -->
+    <div class="terminal" id="demo">
+      <div class="terminal-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="terminal-title">bash — claude-space/statusline</span>
+      </div>
+      <div class="terminal-body"><span class="t-dim">❦</span> <span id="barPositive">▣</span><span id="barFill" class="t-green">🀫🀫🀫🀫🀫🀫</span><span id="barEmpty" class="t-dim">🀆🀆🀆🀆</span> <span id="pct" class="t-green">56</span> <span class="t-dim">▸</span> <span id="balance"></span> <span class="t-dim">▸</span> <span class="t-orange">⎇ main</span> <span class="t-green">~2</span> <span class="t-red">-1</span> <span class="t-dim">▸</span> <span class="t-cyan">#7</span> <span class="t-green">✓</span>
+  <span class="t-dim">▸</span> <span class="t-gray">05:42</span> <span class="t-dim">↯</span> <span class="t-cyan">claude-space/statusline</span>
+  <span class="t-purple">❦ Tasks  2/5</span></div>
+      <div class="terminal-controls">
+        <div class="ctrl">
+          <label for="ctxSlider">Context</label>
+          <input type="range" id="ctxSlider" min="0" max="100" value="56">
+          <output id="ctxOut">56%</output>
+        </div>
+        <div class="ctrl" style="flex:0;min-width:auto">
+          <label for="providerSel" data-i18n="demo.provider">余额</label>
+          <select id="providerSel">
+            <option value="kimi">Kimi</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="xiaomimimo">Xiaomi MiMo</option>
+            <option value="scnet">SCNet</option>
+            <option value="scnet-tp">SCNet-TP</option>
+            <option value="volces">火山方舟</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 特性 -->
+  <section id="features">
+    <div class="reveal">
+      <div class="section-label" data-i18n="features.label">特性</div>
+      <h2 class="section-title" data-i18n="features.title">为终端而生。</h2>
+      <p class="section-sub" data-i18n="features.sub">每一格电量、每一种颜色,都经过精心设计。</p>
+    </div>
+    <div class="features-grid">
+      <div class="card reveal">
+        <span class="icon t-green">▣🀫🀫🀆</span>
+        <h3 data-i18n="f1.t">电池风格进度条</h3>
+        <p data-i18n="f1.p">正极 + 满格 + 空格,10 格电量直观呈现 Context 使用量,百分比紧随其后。</p>
+        <div class="demo-line">❦ ▣🀫🀫🀫🀫🀆🀆🀆🀆🀆🀆 56</div>
+      </div>
+      <div class="card reveal">
+        <span class="icon"><span class="t-green">●</span><span class="t-yellow">●</span><span class="t-red">●</span></span>
+        <h3 data-i18n="f2.t">动态三色阈值</h3>
+        <p data-i18n="f2.p">用量低于 55% 绿色,55%~75% 黄色,超过 75% 红色。阈值可在 config.json 中自定义。</p>
+        <div class="demo-line"><span class="t-green">🀫🀫🀫 30</span> <span class="t-yellow">🀫🀫🀫🀫🀫🀫 60</span> <span class="t-red">🀫🀫🀫🀫🀫🀫🀫🀫🀫 90</span></div>
+      </div>
+      <div class="card reveal">
+        <span class="icon t-cyan">⟦⟧</span>
+        <h3 data-i18n="f3.t">多 Provider 余额</h3>
+        <p data-i18n="f3.p">DeepSeek、Kimi、小米 MiMo、SCNet、火山方舟,自动识别当前生效的 provider。</p>
+        <div class="demo-line"><span class="t-yellow">⟦Kimi 69%⟧</span> <span class="t-green">⟦¥98.66⟧</span></div>
+      </div>
+      <div class="card reveal">
+        <span class="icon t-orange">⎇</span>
+        <h3 data-i18n="f4.t">Git 与 PR 集成</h3>
+        <p data-i18n="f4.p">分支名、文件变动统计、开放 PR 的编号与评审状态,终端中可点击跳转。</p>
+        <div class="demo-line"><span class="t-orange">⎇ main</span> <span class="t-green">~2</span> <span class="t-red">-1</span> <span class="t-cyan">#7</span> <span class="t-green">✓</span></div>
+      </div>
+      <div class="card reveal">
+        <span class="icon t-purple">❦</span>
+        <h3 data-i18n="f5.t">Tasks 进度</h3>
+        <p data-i18n="f5.p">使用 TaskCreate 任务系统时,第三行实时显示任务完成进度。</p>
+        <div class="demo-line"><span class="t-purple">❦ Tasks  2/5</span></div>
+      </div>
+      <div class="card reveal">
+        <span class="icon t-gray">$</span>
+        <h3 data-i18n="f6.t">跨平台零依赖</h3>
+        <p data-i18n="f6.p">纯 Bash 实现,macOS 自带 bash 3.2、Windows Git Bash/WSL、Linux 均可直接运行。</p>
+        <div class="demo-line"><span class="t-gray">macOS · Windows · Linux</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Providers -->
+  <section id="providers">
+    <div class="reveal">
+      <div class="section-label" data-i18n="providers.label">Providers</div>
+      <h2 class="section-title" data-i18n="providers.title">余额,心中有数。</h2>
+      <p class="section-sub" data-i18n="providers.sub">配置多个 provider,自动显示当前生效的那一个。Stale-while-revalidate,同步路径零等待。</p>
+    </div>
+    <div class="providers-grid">
+      <div class="card reveal">
+        <h3>Kimi</h3>
+        <p data-i18n="p1.p">Coding Plan 用量,5 小时窗口与周度配额各自独立着色。</p>
+        <span class="provider-badge">⟦<span class="t-yellow">Kimi 69%</span>/<span class="t-green">10%</span>⟧</span>
+      </div>
+      <div class="card reveal">
+        <h3>DeepSeek</h3>
+        <p data-i18n="p2.p">账户余额直查,低于 ¥5 红色告警。</p>
+        <span class="provider-badge">⟦<span class="t-yellow">¥98.66</span>⟧</span>
+      </div>
+      <div class="card reveal">
+        <h3>Xiaomi MiMo</h3>
+        <p data-i18n="p3.p">Token Plan 用量,Cookie 鉴权 + Playwright 自动刷新。</p>
+        <span class="provider-badge">⟦<span class="t-yellow">Mimo 74%</span>(30.3亿/41.0亿)⟧</span>
+      </div>
+      <div class="card reveal">
+        <h3>SCNet</h3>
+        <p data-i18n="p4.p">超算互联网资源用量,API 模式按已用/总量显示。</p>
+        <span class="provider-badge">⟦<span class="t-green">SCNet 49%</span>(490万/1000万)⟧</span>
+      </div>
+      <div class="card reveal">
+        <h3>SCNet-TP</h3>
+        <p data-i18n="p5.p">TokenPlan 模式,按 API key 格式自动路由。</p>
+        <span class="provider-badge">⟦<span class="t-green">SCNet-TP 0%</span>(0/6万)⟧</span>
+      </div>
+      <div class="card reveal">
+        <h3 data-i18n="p6.t">火山方舟</h3>
+        <p data-i18n="p6.p">Coding / Agent Plan 双模式,按 BASE_URL 路径自动路由。</p>
+        <span class="provider-badge">⟦<span class="t-green">方舟Coding 21%</span>/<span class="t-green">3%</span>⟧</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 安装 -->
+  <section id="install">
+    <div class="reveal">
+      <div class="section-label" data-i18n="install.label">安装</div>
+      <h2 class="section-title" data-i18n="install.title">两行命令,即刻上手。</h2>
+    </div>
+    <div class="install-steps">
+      <div class="step reveal">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3 data-i18n="s1.t">运行安装脚本</h3>
+          <p data-i18n="s1.p">一键下载并安装到 ~/.claude/statusline/,自动写入 settings.json。</p>
+          <div class="cmd-row">
+            <code id="installCmd">curl -fsSL https://raw.githubusercontent.com/ember-hearted/statusline/master/bin/install.sh | bash</code>
+            <button class="copy-btn" data-copy="installCmd" data-i18n="copy">复制</button>
+          </div>
+        </div>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3 data-i18n="s2.t">重载插件</h3>
+          <p data-i18n="s2.p">在 Claude Code 中运行以下命令,状态栏即刻生效。</p>
+          <div class="cmd-row">
+            <code id="reloadCmd">/reload-plugins</code>
+            <button class="copy-btn" data-copy="reloadCmd" data-i18n="copy">复制</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span data-i18n="footer.author">作者:一只小火柴๑҉</span>
+  <span class="sep">·</span>
+  <a href="https://github.com/ember-hearted/statusline" target="_blank" rel="noopener">GitHub</a>
+  <span class="sep">·</span>
+  <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener">MIT License</a>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- i18n ---------- */
+  var i18n = {
+    zh: {
+      "nav.demo": "演示", "nav.features": "特性", "nav.providers": "Providers", "nav.install": "安装",
+      "hero.title1": "终端状态栏,", "hero.title2": "一目了然。",
+      "hero.tagline": "电池风格的 Claude Code 状态栏:Context 用量、LLM 余额、Git 状态、任务进度 —— 尽在指尖。",
+      "copy": "复制", "copied": "已复制 ✓",
+      "demo.provider": "余额",
+      "features.label": "特性", "features.title": "为终端而生。", "features.sub": "每一格电量、每一种颜色,都经过精心设计。",
+      "f1.t": "电池风格进度条", "f1.p": "正极 + 满格 + 空格,10 格电量直观呈现 Context 使用量,百分比紧随其后。",
+      "f2.t": "动态三色阈值", "f2.p": "用量低于 55% 绿色,55%~75% 黄色,超过 75% 红色。阈值可在 config.json 中自定义。",
+      "f3.t": "多 Provider 余额", "f3.p": "DeepSeek、Kimi、小米 MiMo、SCNet、火山方舟,自动识别当前生效的 provider。",
+      "f4.t": "Git 与 PR 集成", "f4.p": "分支名、文件变动统计、开放 PR 的编号与评审状态,终端中可点击跳转。",
+      "f5.t": "Tasks 进度", "f5.p": "使用 TaskCreate 任务系统时,第三行实时显示任务完成进度。",
+      "f6.t": "跨平台零依赖", "f6.p": "纯 Bash 实现,macOS 自带 bash 3.2、Windows Git Bash/WSL、Linux 均可直接运行。",
+      "providers.label": "Providers", "providers.title": "余额,心中有数。",
+      "providers.sub": "配置多个 provider,自动显示当前生效的那一个。Stale-while-revalidate,同步路径零等待。",
+      "p1.p": "Coding Plan 用量,5 小时窗口与周度配额各自独立着色。",
+      "p2.p": "账户余额直查,低于 ¥5 红色告警。",
+      "p3.p": "Token Plan 用量,Cookie 鉴权 + Playwright 自动刷新。",
+      "p4.p": "超算互联网资源用量,API 模式按已用/总量显示。",
+      "p5.p": "TokenPlan 模式,按 API key 格式自动路由。",
+      "p6.t": "火山方舟", "p6.p": "Coding / Agent Plan 双模式,按 BASE_URL 路径自动路由。",
+      "install.label": "安装", "install.title": "两行命令,即刻上手。",
+      "s1.t": "运行安装脚本", "s1.p": "一键下载并安装到 ~/.claude/statusline/,自动写入 settings.json。",
+      "s2.t": "重载插件", "s2.p": "在 Claude Code 中运行以下命令,状态栏即刻生效。",
+      "footer.author": "作者:一只小火柴๑҉"
+    },
+    en: {
+      "nav.demo": "Demo", "nav.features": "Features", "nav.providers": "Providers", "nav.install": "Install",
+      "hero.title1": "Your terminal,", "hero.title2": "at a glance.",
+      "hero.tagline": "A battery-style statusline for Claude Code: context usage, LLM balance, Git status and task progress — right at your fingertips.",
+      "copy": "Copy", "copied": "Copied ✓",
+      "demo.provider": "Balance",
+      "features.label": "Features", "features.title": "Born for the terminal.", "features.sub": "Every battery cell, every color — carefully designed.",
+      "f1.t": "Battery-Style Bar", "f1.p": "Positive pole, full and empty cells — 10 cells visualize context usage with the percentage right beside.",
+      "f2.t": "Dynamic Thresholds", "f2.p": "Green below 55%, yellow up to 75%, red beyond. Thresholds are configurable in config.json.",
+      "f3.t": "Multi-Provider Balance", "f3.p": "DeepSeek, Kimi, Xiaomi MiMo, SCNet, Volcengine Ark — auto-detects the active provider.",
+      "f4.t": "Git & PR Integration", "f4.p": "Branch name, file change stats, open PR number and review status — clickable in supported terminals.",
+      "f5.t": "Tasks Progress", "f5.p": "When using the TaskCreate system, a third line shows live task completion progress.",
+      "f6.t": "Cross-Platform, Zero Deps", "f6.p": "Pure Bash. Runs on macOS bash 3.2, Windows Git Bash/WSL, and Linux out of the box.",
+      "providers.label": "Providers", "providers.title": "Balance, at a glance.",
+      "providers.sub": "Configure multiple providers; the active one is shown automatically. Stale-while-revalidate with zero wait on the sync path.",
+      "p1.p": "Coding Plan usage — 5-hour window and weekly quota colored independently.",
+      "p2.p": "Direct balance lookup, red alert below ¥5.",
+      "p3.p": "Token Plan usage with cookie auth and Playwright auto-refresh.",
+      "p4.p": "SCNet resource usage in API mode, shown as used/total.",
+      "p5.p": "TokenPlan mode, auto-routed by API key format.",
+      "p6.t": "Volcengine Ark", "p6.p": "Coding / Agent Plan modes, auto-routed by BASE_URL path.",
+      "install.label": "Install", "install.title": "Two commands. Done.",
+      "s1.t": "Run the install script", "s1.p": "One-line install to ~/.claude/statusline/, writes settings.json automatically.",
+      "s2.t": "Reload plugins", "s2.p": "Run this in Claude Code and the statusline takes effect immediately.",
+      "footer.author": "By 一只小火柴๑҉"
+    }
+  };
+
+  var lang = localStorage.getItem("sl-lang");
+  if (!lang) lang = (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? "zh" : "en";
+
+  var langToggle = document.getElementById("langToggle");
+
+  function applyLang() {
+    var dict = i18n[lang];
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+    document.title = lang === "zh"
+      ? "Claude Code Statusline — 电池风格的终端状态栏"
+      : "Claude Code Statusline — A battery-style statusline";
+    var nodes = document.querySelectorAll("[data-i18n]");
+    for (var i = 0; i < nodes.length; i++) {
+      var key = nodes[i].getAttribute("data-i18n");
+      if (dict[key]) nodes[i].textContent = dict[key];
+    }
+    langToggle.textContent = lang === "zh" ? "EN" : "中";
+  }
+  langToggle.addEventListener("click", function () {
+    lang = lang === "zh" ? "en" : "zh";
+    localStorage.setItem("sl-lang", lang);
+    applyLang();
+  });
+  applyLang();
+
+  /* ---------- 导航滚动加深 ---------- */
+  var nav = document.getElementById("nav");
+  function onScroll() { nav.classList.toggle("scrolled", window.scrollY > 12); }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  /* ---------- 入场动效 ---------- */
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduceMotion && "IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add("visible"); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.12 });
+    document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
+  } else {
+    document.querySelectorAll(".reveal").forEach(function (el) { el.classList.add("visible"); });
+  }
+
+  /* ---------- 复制按钮 ---------- */
+  document.querySelectorAll(".copy-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var text = document.getElementById(btn.getAttribute("data-copy")).textContent;
+      function done() {
+        btn.textContent = i18n[lang].copied;
+        btn.classList.add("copied");
+        setTimeout(function () {
+          btn.textContent = i18n[lang].copy;
+          btn.classList.remove("copied");
+        }, 1600);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, done);
+      } else {
+        var ta = document.createElement("textarea");
+        ta.value = text; document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(ta);
+        done();
+      }
+    });
+  });
+
+  /* ---------- 可交互模拟终端 ---------- */
+  var BAR_LEN = 10, GREEN_MAX = 55, YELLOW_MAX = 75;
+  var slider = document.getElementById("ctxSlider");
+  var ctxOut = document.getElementById("ctxOut");
+  var barFill = document.getElementById("barFill");
+  var barEmpty = document.getElementById("barEmpty");
+  var pct = document.getElementById("pct");
+  var balance = document.getElementById("balance");
+
+  function colorClass(v) {
+    return v < GREEN_MAX ? "t-green" : v <= YELLOW_MAX ? "t-yellow" : "t-red";
+  }
+  function renderBar(v) {
+    var filled = Math.round(v / 100 * BAR_LEN);
+    var cls = colorClass(v);
+    barFill.textContent = "🀫".repeat(filled);
+    barFill.className = cls;
+    barEmpty.textContent = "🀆".repeat(BAR_LEN - filled);
+    pct.textContent = v;
+    pct.className = cls;
+    ctxOut.textContent = v + "%";
+  }
+  slider.addEventListener("input", function () { renderBar(+slider.value); });
+
+  /* Provider 余额徽标:innerHTML 含着色 span */
+  var balances = {
+    kimi:       '⟦<span class="t-yellow">Kimi 69%</span>/<span class="t-green">10%</span>⟧',
+    deepseek:   '⟦<span class="t-yellow">¥98.66</span>⟧',
+    xiaomimimo: '⟦<span class="t-yellow">Mimo 74%</span><span class="t-dim">(30.3亿/41.0亿)</span>⟧',
+    scnet:      '⟦<span class="t-green">SCNet 49%</span><span class="t-dim">(490万/1000万)</span>⟧',
+    "scnet-tp": '⟦<span class="t-green">SCNet-TP 0%</span><span class="t-dim">(0/6万)</span>⟧',
+    volces:     '⟦<span class="t-green">方舟Coding 21%</span>/<span class="t-green">3%</span>⟧'
+  };
+  var providerSel = document.getElementById("providerSel");
+  function renderBalance() { balance.innerHTML = balances[providerSel.value] || ""; }
+  providerSel.addEventListener("change", renderBalance);
+
+  renderBar(+slider.value);
+  renderBalance();
+})();
+</script>
+</body>
+</html>
