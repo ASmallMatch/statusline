@@ -294,7 +294,7 @@ time_display=""
 if [ "$show_time" = "true" ]; then
     time_now=$(printf '%(%H:%M)T' -1 2>/dev/null || date +%H:%M 2>/dev/null || echo "")
     case "$time_now" in ""|*T*|*'%'*) time_now=$(date +%H:%M 2>/dev/null || echo "") ;; esac
-    [ -n "$time_now" ] && time_display=" ${sep} ${c_gray}${time_now}${reset_color}"
+    [ -n "$time_now" ] && time_display="${sep} ${c_gray}${time_now}${reset_color}"
 fi
 
 # 获取 session_id（Tasks 目录命名用）
@@ -388,13 +388,7 @@ if [ -n "$effort" ] && [ "$show_effort" = "true" ]; then
     effort_display="${c_gray}⟦${reset_color}${effort_color}${effort}${reset_color}${c_gray}⟧${reset_color}"
 fi
 
-# 第一行: 进度条 · 余额 · 思考级别 · 路径 · 时间（余额/思考为空时跳过对应片段与分隔符）
-statusline="${progress_display}"
-[ -n "$balance_display" ] && statusline="${statusline} ${sep} ${balance_display}"
-[ -n "$effort_display" ] && statusline="${statusline} ${effort_display}"
-statusline="${statusline} ${c_gray}↯${reset_color} ${dir_display}${time_display}"
-
-# 第二行: 分支 · PR（分支段与 PR 段可独立缺席；都没有时整行不输出）
+# 分支 · PR 段（两者可独立缺席，都为空时第一行不插入分支片段）
 git_line=""
 [ -n "$branch_display" ] && git_line="$branch_display"
 if [ -n "$pr_display" ]; then
@@ -405,14 +399,23 @@ if [ -n "$pr_display" ]; then
     fi
 fi
 
+# 第一行: 进度条 · 余额 · 思考级别 · 分支/PR（余额/思考/分支为空时跳过对应片段与分隔符）
+statusline="${progress_display}"
+[ -n "$balance_display" ] && statusline="${statusline} ${sep} ${balance_display}"
+[ -n "$effort_display" ] && statusline="${statusline} ${effort_display}"
+[ -n "$git_line" ] && statusline="${statusline} ${sep} ${git_line}"
+
 # 活动行前缀
 activity_prefix="  "
 
 # 输出主状态行
 echo -e "${statusline}"
 
-# 输出第二行（分支/PR）与第三行（Tasks）
-[ -n "$git_line" ] && echo -e "${activity_prefix}${git_line}"
+# 输出第二行（时间/路径）与第三行（Tasks）
+line2="${activity_prefix}"
+[ -n "$time_display" ] && line2="${line2}${time_display} "
+line2="${line2}${c_gray}↯${reset_color} ${dir_display}"
+echo -e "${line2}"
 [ -n "$tasks_line" ] && echo -e "${activity_prefix}${c_purple}${tasks_line}${reset_color}"
 
 exit 0

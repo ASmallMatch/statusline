@@ -19,7 +19,7 @@
 - **LLM 余额查询**：可配置的多 provider 模式，支持 DeepSeek、Kimi、Xiaomi MiMo、SCNet（API/TokenPlan 双模式自动路由）、火山方舟（Coding/Agent Plan 双模式自动路由）等厂商余额/用量显示
 - **智能切换**：配置多个 provider，自动显示当前生效（token 有效）的那一个
 - **Tasks 进度显示**：显示 TaskCreate 任务完成/总数（第三行）
-- **PR 徽章**：当前分支开放 PR 的编号与评审状态（第二行，终端支持时可点击）
+- **PR 徽章**：当前分支开放 PR 的编号与评审状态（第一行，终端支持时可点击）
 - **Git 状态集成**：显示分支名和文件变动统计
 - **跨平台**：Windows (Git Bash/WSL)、macOS、Linux
 
@@ -217,10 +217,10 @@ chmod +x ~/.claude/statusline/statusline.sh
 
 ```
 # 第一行：主状态行（Kimi 示例）
-❦ ▣🀫🀫🀫🀫🀆🀆🀆🀆🀆 56 ▸ ⟦Kimi 69%/10%⟧ ↯ claude-space/statusline ▸ 05:42
+❦ ▣🀫🀫🀫🀫🀆🀆🀆🀆🀆 56 ▸ ⟦Kimi 69%/10%⟧ ▸  test ~2 -1 ▸ #7 ✓
 
-# 第二行：Git 分支与 PR 徽章（有分支或 PR 时显示）
-    test ~2 -1 ▸ #7 ✓
+# 第二行：时间与当前路径（始终显示）
+  ▸ 05:42 ↯ claude-space/statusline
 
 # 第三行：Tasks 进度（使用 TaskCreate 时显示）
   ❦ Tasks  2/5
@@ -239,15 +239,19 @@ chmod +x ~/.claude/statusline/statusline.sh
 - `⟦SCNet 49%(490万/1000万)⟧` - SCNet 资源用量（API 模式，百分比着色，已用/总量）
 - `⟦SCNet-TP 0%(0/6万)⟧` - SCNet TokenPlan 用量（CREDITS，百分比着色，已用/总量）
 - `⟦方舟Coding 21%/3%⟧` - 火山方舟 Coding Plan 用量（5h/周使用率，各自着色）；Agent Plan 显示为 `方舟Agent`
-- `↯` - 余额与路径之间的分隔符
-- `▸` - 第一行百分比与余额、路径与时间、第二行分支与 PR 之间的分隔符
+- `↯` - 当前路径指示符（第二行路径前）
+- `▸` - 第一行各片段（百分比与余额、思考级别、分支与 PR）及第二行时间与路径之间的分隔符
 - `claude-space/statusline` - 两级目录名（青色）
 - ` test` - Git 分支（橙色）
 - `~2 -1` - 文件变动统计（修改2个，删除1个）
 - `05:42` - 时间（灰色）
 
-**第二行**（有 Git 分支或 PR 时显示，行首缩进两空格）：
-- `  test` - Git 分支（橙色）
+**第二行**（始终显示，行首缩进两空格）：
+- `▸ 05:42` - 时间（灰色）
+- `↯ claude-space/statusline` - 当前路径（青色），`↯` 为路径指示符
+
+**第一行**中的 Git 片段（有分支或 PR 时显示）：
+- ` test` - Git 分支（橙色）
 - `~2 -1` - 文件变动统计（修改2个，删除1个）
 - `#7 ✓` - PR 徽章：`✓` 已批准（绿）/ `✗` 变更请求（红）/ `…` 待审（黄）/ `✎` 草稿（灰）；终端支持时整体可点击跳转
 

@@ -217,10 +217,10 @@ The system automatically reads `ANTHROPIC_BASE_URL`, extracts the provider ident
 
 ```
 # Line 1: Main status line (Kimi example)
-❦ ▣🀫🀫🀫🀫🀆🀆🀆🀆🀆 56 ▸ ⟦Kimi 69%/10%⟧ ↯ claude-space/statusline ▸ 05:42
+❦ ▣🀫🀫🀫🀫🀆🀆🀆🀆🀆 56 ▸ ⟦Kimi 69%/10%⟧ ▸  test ~2 -1 ▸ #7 ✓
 
-# Line 2: Git branch and PR badge (shown when either exists)
-    test ~2 -1 ▸ #7 ✓
+# Line 2: Time and current path (always shown)
+  ▸ 05:42 ↯ claude-space/statusline
 
 # Line 3: Tasks progress (shown when TaskCreate is used)
   ❦ Tasks  2/5
@@ -236,15 +236,19 @@ Format description:
 - `⟦¥98.66⟧` - DeepSeek balance (colored inside brackets)
 - `⟦Kimi 69%/10%⟧` - Kimi Coding Plan usage (5h rate / weekly quota, each colored independently)
 - `⟦方舟Coding 21%/3%⟧` - Volcengine Ark Coding Plan usage (5h / weekly rate, each colored independently); Agent Plan shows as `方舟Agent`
-- `↯` - Separator between balance and path
-- `▸` - Separator between percentage and balance, path and time (line 1), and between branch and PR (line 2)
+- `↯` - Current path indicator (before path on line 2)
+- `▸` - Separator between segments of line 1 (percentage/balance, effort, branch and PR), and between time and path on line 2
 - `claude-space/statusline` - Two-level directory name (cyan)
 - ` test` - Git branch (orange)
 - `~2 -1` - File change statistics (2 modified, 1 deleted)
 - `05:42` - Time (gray)
 
-**Line 2** (shown when a Git branch or PR exists, indented two spaces):
-- `  test` - Git branch (orange)
+**Line 2** (always shown, indented two spaces):
+- `▸ 05:42` - Time (gray)
+- `↯ claude-space/statusline` - Current path (cyan), with the `↯` path indicator
+
+**Git segment in line 1** (shown when a branch or PR exists):
+- ` test` - Git branch (orange)
 - `~2 -1` - File change statistics (2 modified, 1 deleted)
 - `#7 ✓` - PR badge: `✓` approved (green) / `✗` changes requested (red) / `…` pending (yellow) / `✎` draft (gray); clickable in supported terminals
 
