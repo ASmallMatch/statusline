@@ -209,27 +209,8 @@ c_red="\033[31m"           # 红色
 # echo -e 二次转义（\\ 组合吃掉反斜杠，泄漏字面 033[0m）
 reset_color=$'\033[0m'
 
-# 显示两级目录名（如：parent/current）
-get_two_level_path() {
-    local path="$1"
-    # 移除末尾的斜杠
-    path="${path%/}"
-    # 根目录特殊情况
-    [ -z "$path" ] && path="/"
-    # basename / dirname 用参数扩展（零 fork，替代 basename/dirname 外部命令）
-    local current="${path##*/}"
-    local parent="${path%/*}"
-    parent="${parent##*/}"
-    # 如果当前是根目录
-    [ "$current" = "/" ] && current="root"
-    # 如果父目录是根目录或空，只显示当前目录
-    if [ "$parent" = "/" ] || [ -z "$parent" ] || [ "$parent" = "$path" ]; then
-        echo "$current"
-    else
-        echo "${parent}/${current}"
-    fi
-}
-display_path=$(get_two_level_path "$full_path")
+# 全路径显示（浅路径一眼看清，深路径靠终端折行）
+display_path="$full_path"
 
 # 路径着色
 dir_display="${c_cyan}${display_path}${reset_color}"
