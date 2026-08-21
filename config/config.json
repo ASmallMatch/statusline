@@ -9,7 +9,7 @@
   },
   "balance": {
     "deepseek": {
-      "token_env": "ANTHROPIC_AUTH_TOKEN,DEEPSEEK_API_KEY",
+      "token_env": "ANTHROPIC_AUTH_TOKEN,DEEPSEEK_API_KEY,ANTHROPIC_API_KEY",
       "api_url": "https://api.deepseek.com/user/balance"
     },
     "kimi": {
